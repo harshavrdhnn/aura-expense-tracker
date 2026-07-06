@@ -9,6 +9,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -144,6 +149,22 @@ const uid  = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const lsGet = (key, def) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } };
 const lsSet = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
 
+// Tolerant Firebase config parser
+function parseFirebaseConfig(raw) {
+  if (!raw) return null;
+  let str = raw.trim();
+  str = str.replace(/^(const|var|let)\s+\w+\s*=\s*/, "");
+  str = str.replace(/;$/, "").trim();
+  try {
+    return JSON.parse(str);
+  } catch (_) {}
+  try {
+    const result = new Function("return " + str)();
+    if (result && typeof result === "object") return result;
+  } catch (_) {}
+  return null;
+}
+
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 const icons = {
   wallet:    "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8L6 7h12l-2-4z",
@@ -152,11 +173,14 @@ const icons = {
   chevL:     "M15 18l-6-6 6-6",
   chevR:     "M9 18l6-6-6-6",
   x:         "M18 6L6 18M6 6l12 12",
-  pencil:    "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z",
+  pencil:    "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z",
   check:     "M20 6L9 17l-5-5",
   trending:  "M23 6l-9.5 9.5-5-5L1 18",
   dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
   receipt:   "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
+  settings:  "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  share:     "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13",
+  copy:      "M9 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1 M20 6h-8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z",
 };
 
 const SvgIcon = ({ name, size=18 }) => {
@@ -259,6 +283,23 @@ function RupeeInput({ value, onChange, placeholder="0" }) {
   );
 }
 
+function PBar({ done, total, color }) {
+  const pct = total>0 ? Math.min(100,(done/total)*100) : 0;
+  return React.createElement("div", { className:"progress-bar" },
+    React.createElement("div", { className:"progress-fill", style:{width:`${pct}%`, background:color} })
+  );
+}
+
+function Sec({ title, right, children }) {
+  return React.createElement("div", { style:{marginTop:20} },
+    React.createElement("div", { className:"sec-header" },
+      React.createElement("span", { className:"sec-title" }, title),
+      right
+    ),
+    children
+  );
+}
+
 // ─── BRow ────────────────────────────────────────────────────────────────────
 function BRow({ item, editId, editV, setEditV, onToggle, onEdit, onSave, onDelete, showNote }) {
   const isE = editId === item.id;
@@ -316,7 +357,7 @@ function BRow({ item, editId, editV, setEditV, onToggle, onEdit, onSave, onDelet
 }
 
 // ─── ExpTab ──────────────────────────────────────────────────────────────────
-function ExpTab({ month, setMonth, monthExp, total, bycat, setExp }) {
+function ExpTab({ month, setMonth, monthExp, total, bycat, setExp, onOpenSettings }) {
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ amount:"", category:CATS[0].name, description:"", date:td() });
 
@@ -335,9 +376,14 @@ function ExpTab({ month, setMonth, monthExp, total, bycat, setExp }) {
       color:"white", padding:"20px 16px 20px", borderRadius:"0 0 24px 24px",
       boxShadow:"0 8px 32px rgba(79,70,229,0.3)"
     }},
-      React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:12} },
-        React.createElement(SvgIcon,{name:"wallet",size:18}),
-        React.createElement("h1",{style:{fontSize:16,fontWeight:700}}, "Expense Tracker")
+      React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12} },
+        React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8} },
+          React.createElement(SvgIcon,{name:"wallet",size:18}),
+          React.createElement("h1",{style:{fontSize:16,fontWeight:700}}, "Expense Tracker")
+        ),
+        React.createElement("button", { onClick:onOpenSettings, style:{background:"none",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",padding:4} },
+          React.createElement(SvgIcon,{name:"settings",size:18})
+        )
       ),
       // Month nav
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}},
@@ -432,7 +478,7 @@ function ExpTab({ month, setMonth, monthExp, total, bycat, setExp }) {
 }
 
 // ─── OvTab ───────────────────────────────────────────────────────────────────
-function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent, totalBal, fixedPending, varPending, allPending, available, toRecover }) {
+function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent, totalBal, fixedPending, varPending, allPending, available, toRecover, onOpenSettings }) {
   const [editIncome, setEditIncome] = useState(false);
   const [incomeVal, setIncomeVal] = useState("");
   const [editAId, setEditAId] = useState(null);
@@ -451,6 +497,13 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
   const spentPct = income>0 ? Math.min(100, (monthlySpent/income)*100) : 0;
 
   return React.createElement("div",{style:{padding:"16px 14px"}},
+    // Header row
+    React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12} },
+      React.createElement("h1",{style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "Financial Overview"),
+      React.createElement("button", { onClick:onOpenSettings, style:{background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center",padding:4} },
+        React.createElement(SvgIcon,{name:"settings",size:18})
+      )
+    ),
 
     // Summary Card
     React.createElement("div",{style:{
@@ -624,6 +677,101 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
   );
 }
 
+// ─── Settings Modal ───────────────────────────────────────────────────────────
+function SettingsModal({ settings, onClose, onSave, onGenerateShareLink, shareLinkState }) {
+  const [syncKey, setSyncKey] = useState(settings.syncKey || "");
+  const [firebaseConfig, setFirebaseConfig] = useState(settings.firebaseConfig || "");
+
+  const handleSave = () => {
+    onSave({ syncKey: syncKey.trim(), firebaseConfig: firebaseConfig.trim() });
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(shareLinkState.link).then(() => {
+      alert("Sharing link copied to clipboard!");
+    });
+  };
+
+  return React.createElement("div", { className:"modal-overlay", onClick: e => { if(e.target===e.currentTarget) onClose(); } },
+    React.createElement("div", { className:"modal-sheet", style: { animation: "slideUp 0.25s ease" } },
+      React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16} },
+        React.createElement("h3", { style:{fontSize:17,fontWeight:700,color:"#1e293b"} }, "Sync & Cloud Settings"),
+        React.createElement("button", { className:"icon-btn", onClick:onClose, style:{color:"#64748b"} }, React.createElement(SvgIcon,{name:"x",size:20}))
+      ),
+      
+      React.createElement(Field, { label: "Sync Passcode (Sync Key)" },
+        React.createElement("input", {
+          type: "text",
+          placeholder: "e.g. my-private-passcode",
+          value: syncKey,
+          onChange: e => setSyncKey(e.target.value),
+          className: "input-field"
+        }),
+        React.createElement("p", { style: { fontSize: 11, color: "#64748b", marginTop: 4 } },
+          "Devices with this same passcode will synchronize your expenses in real time."
+        )
+      ),
+
+      React.createElement(Field, { label: "Firebase Realtime DB Config JSON" },
+        React.createElement("textarea", {
+          placeholder: 'e.g. { "apiKey": "...", "databaseURL": "...", "projectId": "..." }',
+          value: firebaseConfig,
+          onChange: e => setFirebaseConfig(e.target.value),
+          rows: 4,
+          className: "input-field",
+          style: { fontFamily: "monospace", fontSize: 12, resize: "vertical" }
+        }),
+        React.createElement("p", { style: { fontSize: 11, color: "#64748b", marginTop: 4 } },
+          "Paste the configuration object from your Firebase Console. Ensure Realtime Database rules allow read/writes."
+        )
+      ),
+
+      // Share Link Generator
+      React.createElement("div", { style: { borderTop: "1px solid #e2e8f0", paddingTop: 16, marginTop: 16, marginBottom: 16 } },
+        React.createElement("label", { className: "label", style: { fontWeight: 600 } }, "Invite & Sync Other Devices"),
+        React.createElement("p", { style: { fontSize: 11, color: "#64748b", marginBottom: 10 } },
+          "Generate a shareable link to load this settings configuration on another device."
+        ),
+        React.createElement("button", {
+          type: "button",
+          className: "btn-secondary",
+          onClick: () => onGenerateShareLink({ syncKey, firebaseConfig }),
+          disabled: shareLinkState.loading,
+          style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 12px", width: "auto" }
+        },
+          React.createElement(SvgIcon, { name: "share", size: 14 }),
+          shareLinkState.loading ? "Generating..." : "Generate Invite Link"
+        ),
+        shareLinkState.link && React.createElement("div", { style: { marginTop: 12 } },
+          React.createElement("div", { style: { display: "flex", gap: 8 } },
+            React.createElement("input", {
+              type: "text",
+              readOnly: true,
+              value: shareLinkState.link,
+              className: "input-field",
+              style: { flex: 1, fontSize: 12, background: "#f8fafc" }
+            }),
+            React.createElement("button", {
+              type: "button",
+              className: "btn-primary",
+              onClick: handleCopy,
+              style: { width: "auto", padding: "0 16px" }
+            }, "Copy")
+          ),
+          React.createElement("p", { style: { fontSize: 11, color: "#10b981", fontWeight: 600, marginTop: 4 } },
+            "✅ Send this link to other devices to connect them to this sync key."
+          )
+        )
+      ),
+
+      React.createElement("div", { style:{display:"flex",gap:10,marginTop:12} },
+        React.createElement("button", { className:"btn-secondary", onClick:onClose }, "Cancel"),
+        React.createElement("button", { className:"btn-primary", onClick:handleSave }, "Save Settings")
+      )
+    )
+  );
+}
+
 // ─── Root App ─────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab]         = useState("expenses");
@@ -635,12 +783,159 @@ function App() {
   const [income, setIncome]   = useState(() => lsGet("ov_income", DEF_INCOME));
   const [month, setMonth]     = useState("2026-07");
 
-  useEffect(()=>{ lsSet("exp_v4", exp); }, [exp]);
-  useEffect(()=>{ lsSet("ov_acc", acc); }, [acc]);
-  useEffect(()=>{ lsSet("ov_fixed", fixed); }, [fixed]);
-  useEffect(()=>{ lsSet("ov_var", varExp); }, [varExp]);
-  useEffect(()=>{ lsSet("ov_recover", recover); }, [recover]);
-  useEffect(()=>{ lsSet("ov_income", income); }, [income]);
+  // Syncing & Firebase settings
+  const [settings, setSettings] = useState(() => lsGet("aura_settings_v1", { syncKey: "", firebaseConfig: "" }));
+  const [showSettings, setShowSettings] = useState(false);
+  const [shareLinkState, setShareLinkState] = useState({ loading: false, link: "" });
+  const [toast, setToast] = useState(null);
+
+  const lastRemoteData = useRef("");
+  const firebaseSyncRef = useRef(null);
+  const firebaseDbRef = useRef(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // URL Hash loading checks (load configuration shares on mount)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith("#config=")) {
+      try {
+        const base64Str = hash.replace("#config=", "");
+        const decodedStr = atob(base64Str);
+        const configObj = JSON.parse(decodedStr);
+        if (configObj && configObj.settings) {
+          setSettings(configObj.settings);
+          lsSet("aura_settings_v1", configObj.settings);
+          // Clear hash in URL bar safely
+          history.replaceState(null, "", window.location.pathname);
+          showToast("Successfully loaded cloud sync settings!", "success");
+        }
+      } catch (e) {
+        console.error("Failed to parse URL config sharing hash:", e);
+        showToast("Invalid invite configuration hash.", "error");
+      }
+    }
+  }, []);
+
+  // Firebase Setup & Realtime DB Listening
+  useEffect(() => {
+    if (typeof firebase === "undefined") return;
+
+    const configStr = settings.firebaseConfig;
+    const syncKey = settings.syncKey;
+
+    if (firebaseSyncRef.current) {
+      firebaseSyncRef.current.off();
+      firebaseSyncRef.current = null;
+    }
+    firebaseDbRef.current = null;
+
+    if (!configStr) {
+      console.log("Firebase config not set. Offline mode.");
+      return;
+    }
+
+    try {
+      const config = parseFirebaseConfig(configStr);
+      if (!config) {
+        showToast("Invalid Firebase configuration format.", "error");
+        return;
+      }
+      if (!config.databaseURL) {
+        showToast("Firebase Config: Missing 'databaseURL'.", "error");
+        return;
+      }
+
+      // Re-initialize firebase app cleanly
+      const initApp = () => {
+        let app;
+        if (firebase.apps.length > 0) {
+          app = firebase.app();
+        } else {
+          app = firebase.initializeApp(config);
+        }
+
+        const db = firebase.database(app);
+        firebaseDbRef.current = db;
+
+        const resolvedKey = syncKey || (config.projectId ? config.projectId : "default");
+        const ref = db.ref(`aura_expense_tracker/${resolvedKey}`);
+        firebaseSyncRef.current = ref;
+
+        showToast("⚡ Cloud Sync Active!", "success");
+
+        ref.on("value", snapshot => {
+          const data = snapshot.val();
+          if (data) {
+            const dataStr = JSON.stringify(data);
+            if (dataStr !== lastRemoteData.current) {
+              lastRemoteData.current = dataStr;
+              
+              if (data.exp) setExp(data.exp);
+              if (data.acc) setAcc(data.acc);
+              if (data.fixed) setFixed(data.fixed);
+              if (data.varExp) setVarExp(data.varExp);
+              if (data.recover) setRecover(data.recover);
+              if (data.income !== undefined) setIncome(data.income);
+              
+              showToast("Cloud sync loaded latest updates!", "success");
+            }
+          } else {
+            // Path is empty: write initial state to seed cloud
+            const initialData = { exp, acc, fixed, varExp, recover, income };
+            ref.set(initialData).then(() => {
+              lastRemoteData.current = JSON.stringify(initialData);
+            });
+          }
+        }, err => {
+          console.error("Firebase RTDB sync error:", err);
+          showToast("Sync Error: " + err.message, "error");
+        });
+      };
+
+      if (firebase.apps.length > 0) {
+        firebase.app().delete().then(initApp).catch(initApp);
+      } else {
+        initApp();
+      }
+
+    } catch (e) {
+      console.error("Firebase setup failed:", e);
+      showToast("Firebase initialization failed.", "error");
+    }
+
+    return () => {
+      if (firebaseSyncRef.current) {
+        firebaseSyncRef.current.off();
+      }
+    };
+  }, [settings]);
+
+  // Synchronize state changes to local storage & Firebase DB
+  useEffect(() => {
+    const localData = { exp, acc, fixed, varExp, recover, income };
+    const localStr = JSON.stringify(localData);
+
+    lsSet("exp_v4", exp);
+    lsSet("ov_acc", acc);
+    lsSet("ov_fixed", fixed);
+    lsSet("ov_var", varExp);
+    lsSet("ov_recover", recover);
+    lsSet("ov_income", income);
+
+    if (firebaseDbRef.current && firebaseSyncRef.current) {
+      if (localStr !== lastRemoteData.current) {
+        firebaseSyncRef.current.set(localData).then(() => {
+          lastRemoteData.current = localStr;
+        }).catch(err => {
+          console.error("Failed to push changes to Firebase:", err);
+        });
+      }
+    }
+  }, [exp, acc, fixed, varExp, recover, income]);
 
   const monthExp     = exp.filter(e=>mk(e.date)===month).sort((a,b)=>a.date<b.date?1:-1);
   const total        = monthExp.reduce((s,e)=>s+e.amount, 0);
@@ -652,12 +947,59 @@ function App() {
   const toRecover    = recover.filter(r=>!r.recovered).reduce((s,r)=>s+r.amount, 0);
   const available    = totalBal - allPending;
 
+  const handleOpenSettings = () => {
+    setShareLinkState({ loading: false, link: "" });
+    setShowSettings(true);
+  };
+
+  const handleSaveSettings = (newSettings) => {
+    setSettings(newSettings);
+    lsSet("aura_settings_v1", newSettings);
+    setShowSettings(false);
+    showToast("Sync settings updated!", "success");
+  };
+
+  const handleGenerateShareLink = async (targetSettings) => {
+    setShareLinkState({ loading: true, link: "" });
+    const configData = { settings: targetSettings };
+    const base64Str = btoa(JSON.stringify(configData));
+    const origin = window.location.origin + window.location.pathname;
+    const fullUrl = `${origin}#config=${base64Str}`;
+
+    let shortUrl = null;
+    try {
+      const resp = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(fullUrl)}`);
+      if (resp.ok) {
+        const text = await resp.text();
+        if (text.startsWith("https://tinyurl.com/")) {
+          shortUrl = text.trim();
+        }
+      }
+    } catch (e) {
+      console.warn("TinyURL request failed:", e);
+    }
+
+    setShareLinkState({ loading: false, link: shortUrl || fullUrl });
+  };
+
   return React.createElement("div", { id:"root" },
+    // Custom Toast Banner
+    toast && React.createElement("div", {
+      style: {
+        position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+        background: toast.type === "success" ? "linear-gradient(135deg, #059669 0%, #0d9488 100%)" : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+        color: "white", padding: "10px 16px", borderRadius: 12, zIndex: 9999,
+        fontSize: 12, fontWeight: 600, boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
+        textAlign: "center", width: "calc(100% - 32px)", maxWidth: 300
+      }
+    }, toast.message),
+
     React.createElement("div", { className:"scroll-area" },
       tab==="expenses"
-        ? React.createElement(ExpTab, { month, setMonth, monthExp, total, bycat, setExp })
-        : React.createElement(OvTab, { acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent:total, totalBal, fixedPending, varPending, allPending, available, toRecover })
+        ? React.createElement(ExpTab, { month, setMonth, monthExp, total, bycat, setExp, onOpenSettings: handleOpenSettings })
+        : React.createElement(OvTab, { acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent:total, totalBal, fixedPending, varPending, allPending, available, toRecover, onOpenSettings: handleOpenSettings })
     ),
+
     React.createElement("nav", { className:"bottom-nav" },
       [
         { key:"expenses", label:"Expenses",  icon:"receipt"   },
@@ -668,7 +1010,16 @@ function App() {
           React.createElement("span", null, label)
         )
       )
-    )
+    ),
+
+    // Sync Settings Modal
+    showSettings && React.createElement(SettingsModal, {
+      settings,
+      onClose: () => setShowSettings(false),
+      onSave: handleSaveSettings,
+      onGenerateShareLink: handleGenerateShareLink,
+      shareLinkState
+    })
   );
 }
 
