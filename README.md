@@ -64,5 +64,3 @@ This project is pre-configured with `firebase.json` to publish the static app in
    ```bash
    firebase deploy --only hosting
    ```
-
-   
