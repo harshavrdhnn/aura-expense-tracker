@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Expense Tracker – AuraSpend</title>
+  <meta name="description" content="Personal mobile expense tracker with monthly overview, category breakdown, and financial planning." />
+  <meta name="theme-color" content="#4f46e5" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Inter', sans-serif; background: #f1f5f9; overflow: hidden; height: 100dvh; }
+    #root { height: 100dvh; display: flex; flex-direction: column; }
+    .scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 80px; }
+    .scroll-area::-webkit-scrollbar { display: none; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: white; border-top: 1px solid #e2e8f0; display: flex; z-index: 40; box-shadow: 0 -4px 20px rgba(0,0,0,0.06); }
+    .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; font-weight: 500; border: none; background: none; cursor: pointer; transition: color 0.2s; color: #94a3b8; }
+    .nav-btn.active { color: #4f46e5; }
+    .fab { position: fixed; bottom: 80px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; border: none; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(79,70,229,0.4); z-index: 20; transition: transform 0.2s, box-shadow 0.2s; }
+    .fab:active { transform: scale(0.93); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+    .modal-sheet { background: white; border-radius: 24px 24px 0 0; width: 100%; max-height: 88vh; overflow-y: auto; padding: 20px 20px 40px; animation: slideUp 0.25s ease; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .card { background: white; border-radius: 16px; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .pie-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .pie-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #475569; }
+    .pie-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .cat-pill { flex-shrink: 0; border-radius: 12px; padding: 6px 12px; color: white; font-size: 11px; font-weight: 600; }
+    .progress-bar { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
+    .check-circle { width: 20px; height: 20px; border-radius: 50%; border: 2px solid; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: all 0.15s; }
+    .sec-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .sec-title { font-size: 13px; font-weight: 600; color: #334155; }
+    .icon-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 8px; transition: color 0.15s; color: #cbd5e1; display: flex; align-items: center; justify-content: center; }
+    .icon-btn:hover { color: #4f46e5; }
+    .icon-btn.danger:hover { color: #ef4444; }
+    .row-card { background: white; border-radius: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 12px; border-left: 4px solid; }
+    .input-field { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.15s; color: #1e293b; background: white; }
+    .input-field:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    .input-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 14px; pointer-events: none; }
+    .label { font-size: 12px; font-weight: 500; color: #64748b; margin-bottom: 4px; display: block; }
+    .form-group { margin-bottom: 12px; }
+    .btn-primary { width: 100%; padding: 12px; border-radius: 12px; background: #4f46e5; color: white; font-size: 14px; font-weight: 600; border: none; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+    .btn-primary:active { background: #4338ca; }
+    .btn-secondary { width: 100%; padding: 12px; border-radius: 12px; background: white; color: #475569; font-size: 14px; font-weight: 500; border: 1.5px solid #e2e8f0; cursor: pointer; font-family: inherit; }
+    .pie-container { position: relative; width: 100%; display: flex; justify-content: center; }
+    svg text { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React + ReactDOM -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<script>
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+const CATS = [
+  { name:"Food",       color:"#f97316" },
+  { name:"Transport",  color:"#3b82f6" },
+  { name:"Housing",    color:"#8b5cf6" },
+  { name:"Utilities",  color:"#06b6d4" },
+  { name:"Health",     color:"#22c55e" },
+  { name:"Shopping",   color:"#eab308" },
+  { name:"Personal",   color:"#ec4899" },
+  { name:"Family",     color:"#f43f5e" },
+  { name:"EMI / Loan", color:"#ef4444" },
+  { name:"Lent Out",   color:"#f59e0b" },
+  { name:"Repayment",  color:"#dc2626" },
+  { name:"Investment", color:"#10b981" },
+];
+
+const DEF_EXP = [
+  {id:"p1",  date:"2026-06-01", amount:4670,  category:"Housing",    description:"Rent"},
+  {id:"p2",  date:"2026-06-01", amount:5300,  category:"Personal",   description:"Gym"},
+  {id:"p3",  date:"2026-06-01", amount:3700,  category:"Personal",   description:"Maid (your share)"},
+  {id:"p4",  date:"2026-06-05", amount:400,   category:"Food",       description:"Food"},
+  {id:"p5",  date:"2026-06-05", amount:4500,  category:"Health",     description:"Health Insurance"},
+  {id:"p6",  date:"2026-06-05", amount:1800,  category:"EMI / Loan", description:"Super Money EMI"},
+  {id:"p7",  date:"2026-06-05", amount:8000,  category:"EMI / Loan", description:"Education Loan EMI"},
+  {id:"p8",  date:"2026-06-05", amount:7000,  category:"Repayment",  description:"CH Debt Repayment"},
+  {id:"p9",  date:"2026-06-08", amount:600,   category:"Food",       description:"Food"},
+  {id:"p10", date:"2026-06-10", amount:1000,  category:"Transport",  description:"Travel & Misc"},
+  {id:"p11", date:"2026-06-10", amount:1400,  category:"Personal",   description:"Laundry"},
+  {id:"p12", date:"2026-06-10", amount:7500,  category:"Utilities",  description:"Electricity Bill"},
+  {id:"p13", date:"2026-06-12", amount:380,   category:"Food",       description:"Food"},
+  {id:"p14", date:"2026-06-14", amount:1300,  category:"Health",     description:"Medical Test"},
+  {id:"p15", date:"2026-06-15", amount:175,   category:"Transport",  description:"Travel"},
+  {id:"p16", date:"2026-06-15", amount:300,   category:"Shopping",   description:"Groceries"},
+  {id:"p17", date:"2026-06-15", amount:30000, category:"Family",     description:"Sent to Brother"},
+  {id:"p18", date:"2026-06-18", amount:210,   category:"Food",       description:"Food"},
+  {id:"p19", date:"2026-06-20", amount:20000, category:"Investment",  description:"Gold Scheme"},
+  {id:"p20", date:"2026-06-22", amount:165,   category:"Transport",  description:"Travel"},
+  {id:"p21", date:"2026-06-25", amount:90,    category:"Food",       description:"Food"},
+  {id:"p22", date:"2026-07-01", amount:20000, category:"Repayment",  description:"Repaid Friend (Gold Loan)"},
+  {id:"p23", date:"2026-07-01", amount:25000, category:"Lent Out",   description:"CH Transfer"},
+  {id:"p24", date:"2026-07-01", amount:4600,  category:"Health",     description:"Health Insurance"},
+  {id:"p25", date:"2026-07-01", amount:1257,  category:"Utilities",  description:"Current Bill"},
+  {id:"p26", date:"2026-07-01", amount:500,   category:"Investment", description:"RD Savings"},
+  {id:"p27", date:"2026-07-01", amount:2000,  category:"Food",       description:"Food"},
+  {id:"p28", date:"2026-07-02", amount:8000,  category:"Lent Out",   description:"CH Transfer"},
+  {id:"p29", date:"2026-07-02", amount:742,   category:"Food",       description:"Hotel Food"},
+  {id:"p30", date:"2026-07-03", amount:335,   category:"Food",       description:"Outside Food"},
+  {id:"p31", date:"2026-07-03", amount:167,   category:"Food",       description:"Outside Food"},
+  {id:"p32", date:"2026-07-03", amount:120,   category:"Transport",  description:"Local Travel"},
+  {id:"p33", date:"2026-07-04", amount:502,   category:"Food",       description:"Outside Food"},
+  {id:"p34", date:"2026-07-04", amount:502,   category:"Food",       description:"Outside Food"},
+  {id:"p35", date:"2026-07-04", amount:25,    category:"Transport",  description:"Local Travel"},
+  {id:"p36", date:"2026-07-05", amount:1800,  category:"Food",       description:"Hotel Food"},
+  {id:"p37", date:"2026-07-05", amount:101,   category:"Transport",  description:"Auto"},
+];
+
+const DEF_ACC     = [{id:"a1",name:"ACC 1",balance:144288},{id:"a2",name:"ACC 2",balance:17000},{id:"a3",name:"ACC 3",balance:30000}];
+const DEF_FIXED   = [{id:"f1",name:"Gold Scheme",amount:20000,paid:false},{id:"f2",name:"Education Loan EMI",amount:8000,paid:false},{id:"f3",name:"Rent",amount:5000,paid:false},{id:"f4",name:"Health Insurance",amount:5000,paid:true},{id:"f5",name:"Bills (Approx.)",amount:5000,paid:true}];
+const DEF_VAR     = [{id:"v1",name:"Credit Card Bill",amount:0,paid:false,note:"Add your bill amount"}];
+const DEF_RECOVER = [{id:"r1",name:"CH",amount:33000,note:"July transfers (₹25k + ₹8k)",recovered:false},{id:"r2",name:"Friends Outing",amount:0,note:"Amount not finalized yet",recovered:false}];
+const DEF_INCOME  = 260600;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const inr  = n  => "₹" + Number(n).toLocaleString("en-IN", {minimumFractionDigits:0, maximumFractionDigits:0});
+const td   = () => new Date().toISOString().slice(0,10);
+const mk   = d  => d.slice(0,7);
+const fmtM = k  => { const [y,m]=k.split("-").map(Number); return new Date(y,m-1,1).toLocaleDateString(undefined,{month:"long",year:"numeric"}); };
+const shft = (k,d)=>{ const [y,m]=k.split("-").map(Number),dt=new Date(y,m-1+d,1); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`; };
+const uid  = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+
+// LocalStorage helpers
+const lsGet = (key, def) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } };
+const lsSet = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+
+// ─── SVG Icons ───────────────────────────────────────────────────────────────
+const icons = {
+  wallet:    "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8L6 7h12l-2-4z",
+  plus:      "M12 5v14M5 12h14",
+  trash:     "M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2",
+  chevL:     "M15 18l-6-6 6-6",
+  chevR:     "M9 18l6-6-6-6",
+  x:         "M18 6L6 18M6 6l12 12",
+  pencil:    "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z",
+  check:     "M20 6L9 17l-5-5",
+  trending:  "M23 6l-9.5 9.5-5-5L1 18",
+  dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
+  receipt:   "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
+};
+
+const SvgIcon = ({ name, size=18 }) => {
+  const d = icons[name];
+  return React.createElement("svg", {
+    width: size, height: size, viewBox: "0 0 24 24",
+    fill: "none", stroke: "currentColor", strokeWidth: 2,
+    strokeLinecap: "round", strokeLinejoin: "round"
+  }, React.createElement("path", { d }));
+};
+
+// ─── Mini Pie Chart (pure SVG) ───────────────────────────────────────────────
+function PieChart({ data, size=160 }) {
+  const total = data.reduce((s,d)=>s+d.value, 0);
+  if (!total) return null;
+
+  const cx = size/2, cy = size/2, r = size*0.38, ir = size*0.24;
+  let angle = -Math.PI/2;
+  const slices = data.map(d => {
+    const pct = d.value / total;
+    const sweep = pct * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(angle);
+    const y1 = cy + r * Math.sin(angle);
+    angle += sweep;
+    const x2 = cx + r * Math.cos(angle);
+    const y2 = cy + r * Math.sin(angle);
+    const xi1 = cx + ir * Math.cos(angle);
+    const yi1 = cy + ir * Math.sin(angle);
+    angle -= sweep;
+    const xi2 = cx + ir * Math.cos(angle);
+    const yi2 = cy + ir * Math.sin(angle);
+    angle += sweep;
+    const large = sweep > Math.PI ? 1 : 0;
+    const pathD = [
+      `M ${x1} ${y1}`,
+      `A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`,
+      `L ${xi1} ${yi1}`,
+      `A ${ir} ${ir} 0 ${large} 0 ${xi2} ${yi2}`,
+      "Z"
+    ].join(" ");
+    return { ...d, pathD, pct };
+  });
+
+  return React.createElement("svg", { width: size, height: size, viewBox: `0 0 ${size} ${size}` },
+    slices.map(s => React.createElement("path", {
+      key: s.name, d: s.pathD, fill: s.color, stroke: "white", strokeWidth: 1.5
+    }))
+  );
+}
+
+// ─── UI Primitives ───────────────────────────────────────────────────────────
+function Modal({ title, onClose, onSubmit, children, submitLabel="Add" }) {
+  return React.createElement("div", { className:"modal-overlay", onClick: e => { if(e.target===e.currentTarget) onClose(); } },
+    React.createElement("div", { className:"modal-sheet" },
+      React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16} },
+        React.createElement("h3", { style:{fontSize:17,fontWeight:700,color:"#1e293b"} }, title),
+        React.createElement("button", { className:"icon-btn", onClick:onClose, style:{color:"#64748b"} }, React.createElement(SvgIcon,{name:"x",size:20}))
+      ),
+      children,
+      React.createElement("div", { style:{display:"flex",gap:10,marginTop:8} },
+        React.createElement("button", { className:"btn-secondary", onClick:onClose }, "Cancel"),
+        React.createElement("button", { className:"btn-primary", onClick:onSubmit }, submitLabel)
+      )
+    )
+  );
+}
+
+// Custom select element styling helper
+function CustomSelect({ value, onChange, options }) {
+  return React.createElement("div", { style: { position: "relative" } },
+    React.createElement("select", {
+      value,
+      onChange,
+      className: "input-field",
+      style: { WebkitAppearance: "none", MozAppearance: "none", appearance: "none", paddingRight: "30px" }
+    }, options.map(opt => React.createElement("option", { key: opt.value, value: opt.value }, opt.label))),
+    React.createElement("div", { style: { position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#64748b" } },
+      React.createElement("svg", { width: "12", height: "12", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3" },
+        React.createElement("path", { d: "M6 9l6 6 6-6" })
+      )
+    )
+  );
+}
+
+function Field({ label, children }) {
+  return React.createElement("div", { className:"form-group" },
+    React.createElement("label", { className:"label" }, label),
+    children
+  );
+}
+
+function RupeeInput({ value, onChange, placeholder="0" }) {
+  return React.createElement("div", { style:{position:"relative"} },
+    React.createElement("span", { className:"input-prefix" }, "₹"),
+    React.createElement("input", {
+      type:"number", inputMode:"decimal", placeholder,
+      value, onChange: e=>onChange(e.target.value),
+      className:"input-field", style:{paddingLeft:28}
+    })
+  );
+}
+
+// ─── BRow ────────────────────────────────────────────────────────────────────
+function BRow({ item, editId, editV, setEditV, onToggle, onEdit, onSave, onDelete, showNote }) {
+  const isE = editId === item.id;
+  const borderColor = item.paid ? "#10b981" : "#f97316";
+
+  return React.createElement("div", { className:"row-card", style:{borderLeftColor:borderColor,marginBottom:8} },
+    isE
+      ? React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:8} },
+          React.createElement("div", { style:{display:"flex",gap:8} },
+            React.createElement("input", {
+              value:editV.name, placeholder:"Name",
+              onChange:e=>setEditV(v=>({...v,name:e.target.value})),
+              className:"input-field", style:{flex:1}
+            }),
+            React.createElement("div", { style:{position:"relative",width:100} },
+              React.createElement("span", { className:"input-prefix",style:{fontSize:12} }, "₹"),
+              React.createElement("input", {
+                type:"number", value:editV.amount,
+                onChange:e=>setEditV(v=>({...v,amount:e.target.value})),
+                className:"input-field", style:{paddingLeft:20,width:"100%"}
+              })
+            ),
+            React.createElement("button", { className:"btn-primary", onClick:onSave, style:{width:38,padding:0,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"} },
+              React.createElement(SvgIcon,{name:"check",size:14})
+            )
+          ),
+          showNote && React.createElement("input", {
+            value:editV.note||"", placeholder:"Note (optional)",
+            onChange:e=>setEditV(v=>({...v,note:e.target.value})),
+            className:"input-field"
+          })
+        )
+      : React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between"} },
+          React.createElement("div", { style:{display:"flex",alignItems:"center",gap:10,minWidth:0,flex:1} },
+            React.createElement("button", {
+              onClick:onToggle,
+              className:"check-circle",
+              style:{borderColor:item.paid?"#10b981":"#f97316", background:item.paid?"#10b981":"transparent"}
+            }, item.paid && React.createElement(SvgIcon,{name:"check",size:10})),
+            React.createElement("div", { style:{minWidth:0} },
+              React.createElement("p", { style:{fontSize:13,fontWeight:500,color:item.paid?"#94a3b8":"#1e293b",textDecoration:item.paid?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"} }, item.name),
+              React.createElement("div", { style:{display:"flex",alignItems:"center",gap:6} },
+                React.createElement("span", { style:{fontSize:11,color:item.paid?"#10b981":"#f97316"} }, item.paid?"Paid":"Pending"),
+                showNote&&item.note&&React.createElement("span",{style:{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"· "+item.note)
+              )
+            )
+          ),
+          React.createElement("div", { style:{display:"flex",alignItems:"center",gap:4,flexShrink:0} },
+            React.createElement("span", { style:{fontSize:13,fontWeight:600,color:item.paid?"#94a3b8":"#1e293b"} }, inr(item.amount)),
+            React.createElement("button", { className:"icon-btn", onClick:onEdit }, React.createElement(SvgIcon,{name:"pencil",size:13})),
+            React.createElement("button", { className:"icon-btn danger", onClick:onDelete }, React.createElement(SvgIcon,{name:"trash",size:13}))
+          )
+        )
+  );
+}
+
+// ─── ExpTab ──────────────────────────────────────────────────────────────────
+function ExpTab({ month, setMonth, monthExp, total, bycat, setExp }) {
+  const [show, setShow] = useState(false);
+  const [form, setForm] = useState({ amount:"", category:CATS[0].name, description:"", date:td() });
+
+  function add() {
+    const amt = parseFloat(form.amount);
+    if (!amt||amt<=0||!form.date) return;
+    setExp(p=>[...p,{id:uid(),amount:amt,category:form.category,description:form.description.trim(),date:form.date}]);
+    setForm({amount:"",category:CATS[0].name,description:"",date:td()});
+    setShow(false);
+  }
+
+  return React.createElement("div", null,
+    // Header gradient
+    React.createElement("div", { style:{
+      background:"linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+      color:"white", padding:"20px 16px 20px", borderRadius:"0 0 24px 24px",
+      boxShadow:"0 8px 32px rgba(79,70,229,0.3)"
+    }},
+      React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:12} },
+        React.createElement(SvgIcon,{name:"wallet",size:18}),
+        React.createElement("h1",{style:{fontSize:16,fontWeight:700}}, "Expense Tracker")
+      ),
+      // Month nav
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}},
+        React.createElement("button",{onClick:()=>setMonth(m=>shft(m,-1)), style:{padding:"6px 8px",borderRadius:10,background:"rgba(255,255,255,0.15)",border:"none",color:"white",cursor:"pointer",display:"flex"}}, React.createElement(SvgIcon,{name:"chevL",size:15})),
+        React.createElement("span",{style:{fontSize:14,fontWeight:600}}, fmtM(month)),
+        React.createElement("button",{onClick:()=>setMonth(m=>shft(m,1)), style:{padding:"6px 8px",borderRadius:10,background:"rgba(255,255,255,0.15)",border:"none",color:"white",cursor:"pointer",display:"flex"}}, React.createElement(SvgIcon,{name:"chevR",size:15}))
+      ),
+      // Total
+      React.createElement("div",{style:{background:"rgba(255,255,255,0.12)",borderRadius:16,padding:"12px 14px"}},
+        React.createElement("p",{style:{color:"rgba(255,255,255,0.7)",fontSize:11,textTransform:"uppercase",letterSpacing:"0.06em"}},"Total Spent"),
+        React.createElement("p",{style:{fontSize:28,fontWeight:800,margin:"2px 0"}}, inr(total)),
+        React.createElement("p",{style:{color:"rgba(255,255,255,0.6)",fontSize:12}}, monthExp.length+" transactions")
+      )
+    ),
+
+    // Content
+    React.createElement("div",{style:{padding:"12px 14px"}},
+      // Category pills
+      bycat.length>0 && React.createElement("div",{style:{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none"}},
+        bycat.map(c=>React.createElement("div",{key:c.name,className:"cat-pill",style:{background:c.color}},
+          React.createElement("div",null,c.name),
+          React.createElement("div",{style:{fontSize:12,fontWeight:700,marginTop:1}},inr(c.value))
+        ))
+      ),
+
+      // Pie Chart Card
+      bycat.length>0 && React.createElement("div",{className:"card",style:{marginTop:10,padding:14}},
+        React.createElement("p",{style:{fontSize:12,fontWeight:600,color:"#334155",marginBottom:10,display:"flex",alignItems:"center",gap:5}},
+          React.createElement(SvgIcon,{name:"trending",size:13}), "Breakdown"
+        ),
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12}},
+          React.createElement(PieChart,{data:bycat,size:160}),
+          React.createElement("div",{style:{flex:1,display:"flex",flexDirection:"column",gap:5}},
+            bycat.map(c=>React.createElement("div",{key:c.name,style:{display:"flex",alignItems:"center",gap:5}},
+              React.createElement("span",{style:{width:8,height:8,borderRadius:"50%",background:c.color,flexShrink:0}}),
+              React.createElement("span",{style:{fontSize:10,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},c.name),
+              React.createElement("span",{style:{fontSize:10,fontWeight:600,color:"#1e293b"}},inr(c.value))
+            ))
+          )
+        )
+      ),
+
+      // Transaction list
+      React.createElement("h2",{style:{fontSize:12,fontWeight:600,color:"#334155",marginTop:16,marginBottom:8}},
+        "Transactions ("+monthExp.length+")"
+      ),
+      monthExp.length===0
+        ? React.createElement("div",{className:"card",style:{padding:24,textAlign:"center",color:"#94a3b8",fontSize:14}},"No expenses for this month.")
+        : React.createElement("div",null,
+            monthExp.map(e=>{
+              const cat = CATS.find(c=>c.name===e.category);
+              return React.createElement("div",{key:e.id,className:"card",style:{marginBottom:8,padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}},
+                React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,minWidth:0}},
+                  React.createElement("span",{style:{width:10,height:10,borderRadius:"50%",background:cat?.color||"#999",flexShrink:0}}),
+                  React.createElement("div",{style:{minWidth:0}},
+                    React.createElement("p",{style:{fontSize:13,fontWeight:500,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, e.description||e.category),
+                    React.createElement("p",{style:{fontSize:11,color:"#94a3b8"}}, e.category+" · "+new Date(e.date+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"}))
+                  )
+                ),
+                React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,flexShrink:0}},
+                  React.createElement("span",{style:{fontSize:13,fontWeight:600,color:"#1e293b"}}, inr(e.amount)),
+                  React.createElement("button",{className:"icon-btn danger",onClick:()=>setExp(p=>p.filter(x=>x.id!==e.id))},
+                    React.createElement(SvgIcon,{name:"trash",size:14})
+                  )
+                )
+              );
+            })
+          )
+    ),
+
+    // FAB
+    React.createElement("button",{className:"fab",onClick:()=>setShow(true)},"+"),
+
+    // Add Expense Modal
+    show && React.createElement(Modal,{title:"Add Expense",onClose:()=>setShow(false),onSubmit:add},
+      React.createElement(Field,{label:"Amount"},React.createElement(RupeeInput,{value:form.amount,onChange:v=>setForm(f=>({...f,amount:v}))})),
+      React.createElement(Field,{label:"Category"},
+        React.createElement(CustomSelect, {
+          value: form.category,
+          onChange: e => setForm(f => ({ ...f, category: e.target.value })),
+          options: CATS.map(c => ({ value: c.name, label: c.name }))
+        })
+      ),
+      React.createElement(Field,{label:"Description"},
+        React.createElement("input",{type:"text",placeholder:"e.g. Lunch",value:form.description,onChange:e=>setForm(f=>({...f,description:e.target.value})),className:"input-field"})
+      ),
+      React.createElement(Field,{label:"Date"},
+        React.createElement("input",{type:"date",value:form.date,onChange:e=>setForm(f=>({...f,date:e.target.value})),className:"input-field"})
+      )
+    )
+  );
+}
+
+// ─── OvTab ───────────────────────────────────────────────────────────────────
+function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent, totalBal, fixedPending, varPending, allPending, available, toRecover }) {
+  const [editIncome, setEditIncome] = useState(false);
+  const [incomeVal, setIncomeVal] = useState("");
+  const [editAId, setEditAId] = useState(null);
+  const [editAV, setEditAV] = useState({name:"",balance:""});
+  const [showAF, setShowAF] = useState(false); const [newF, setNewF] = useState({name:"",amount:""});
+  const [editFId, setEditFId] = useState(null); const [editFV, setEditFV] = useState({name:"",amount:""});
+  const [showAV, setShowAV] = useState(false); const [newV, setNewV] = useState({name:"",amount:"",note:""});
+  const [editVId, setEditVId] = useState(null); const [editVV, setEditVV] = useState({name:"",amount:"",note:""});
+  const [showAR, setShowAR] = useState(false); const [newR, setNewR] = useState({name:"",amount:"",note:""});
+  const [editRId, setEditRId] = useState(null); const [editRV, setEditRV] = useState({name:"",amount:"",note:""});
+
+  const fixedTotal = fixed.reduce((s,f)=>s+f.amount, 0);
+  const varTotal   = varExp.reduce((s,v)=>s+v.amount, 0);
+  const saved = income - monthlySpent;
+  const pct   = income>0 ? Math.max(0, Math.min(100, (saved/income)*100)) : 0;
+  const spentPct = income>0 ? Math.min(100, (monthlySpent/income)*100) : 0;
+
+  return React.createElement("div",{style:{padding:"16px 14px"}},
+
+    // Summary Card
+    React.createElement("div",{style:{
+      background:"linear-gradient(135deg,#059669 0%,#0d9488 100%)",
+      color:"white",borderRadius:20,padding:16,
+      boxShadow:"0 8px 32px rgba(5,150,105,0.28)"
+    }},
+      // Income row
+      React.createElement("div",{style:{background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"10px 12px",marginBottom:12}},
+        React.createElement("p",{style:{color:"rgba(255,255,255,0.7)",fontSize:11,marginBottom:2}},"Total Credits This Month"),
+        editIncome
+          ? React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
+              React.createElement("span",{style:{fontSize:14}},"₹"),
+              React.createElement("input",{autoFocus:true,type:"number",value:incomeVal,onChange:e=>setIncomeVal(e.target.value),style:{background:"rgba(255,255,255,0.2)",color:"white",border:"none",borderRadius:8,padding:"4px 8px",fontSize:15,width:140,outline:"none"}}),
+              React.createElement("button",{onClick:()=>{const v=parseFloat(incomeVal);if(v>0)setIncome(v);setEditIncome(false);},style:{background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",color:"white",width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"check",size:13}))
+            )
+          : React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
+              React.createElement("p",{style:{fontSize:22,fontWeight:800}}, inr(income)),
+              React.createElement("button",{onClick:()=>{setIncomeVal(String(income));setEditIncome(true);},style:{background:"none",border:"none",color:"rgba(255,255,255,0.6)",cursor:"pointer",display:"flex",alignItems:"center"}},React.createElement(SvgIcon,{name:"pencil",size:14}))
+            )
+      ),
+
+      // Spent vs saved bar
+      React.createElement("div",{style:{marginBottom:12}},
+        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,color:"rgba(255,255,255,0.8)",marginBottom:4}},
+          React.createElement("span","Spent: "+inr(monthlySpent)),
+          React.createElement("span",{style:{color:saved>=0?"#fef08a":"#fca5a5",fontWeight:600}}, (saved>=0?"Saved: ":"Overspent: ")+inr(Math.abs(saved)))
+        ),
+        React.createElement("div",{style:{background:"rgba(255,255,255,0.2)",borderRadius:99,height:8,overflow:"hidden"}},
+          React.createElement("div",{style:{background:"#fef08a",height:8,borderRadius:99,width:`${spentPct}%`,transition:"width 0.5s"}})
+        )
+      ),
+
+      React.createElement("p",{style:{color:"rgba(255,255,255,0.7)",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em"}},"Net Available"),
+      React.createElement("p",{style:{fontSize:26,fontWeight:800,margin:"2px 0 10px"}}, inr(available)),
+
+      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+        [["Bank Balance",totalBal,"white"],["Pending Outgo",allPending,"white"],["To Recover",toRecover,"#fef08a"],["Net + Recovery",available+toRecover,"white"]].map(([l,v,clr])=>
+          React.createElement("div",{key:l,style:{background:"rgba(255,255,255,0.12)",borderRadius:12,padding:"8px 10px"}},
+            React.createElement("p",{style:{fontSize:10,color:"rgba(255,255,255,0.7)",lineHeight:1.3}},l),
+            React.createElement("p",{style:{fontSize:12,fontWeight:700,color:clr,marginTop:2}},inr(v))
+          )
+        )
+      )
+    ),
+
+    // Accounts
+    React.createElement(Sec,{title:"💳 Account Balances",right:React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},"Total: "+inr(totalBal))},
+      React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+        acc.map(a=>React.createElement("div",{key:a.id,className:"card",style:{padding:14}},
+          editAId===a.id
+            ? React.createElement("div",{style:{display:"flex",gap:8}},
+                React.createElement("input",{value:editAV.name,onChange:e=>setEditAV(v=>({...v,name:e.target.value})),placeholder:"Name",className:"input-field",style:{flex:1}}),
+                React.createElement("div",{style:{position:"relative",width:110}},
+                  React.createElement("span",{className:"input-prefix",style:{fontSize:12}},"₹"),
+                  React.createElement("input",{type:"number",value:editAV.balance,onChange:e=>setEditAV(v=>({...v,balance:e.target.value})),className:"input-field",style:{paddingLeft:20,width:"100%"}})
+                ),
+                React.createElement("button",{className:"btn-primary",style:{width:38,padding:0,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>{setAcc(p=>p.map(x=>x.id===a.id?{...x,name:editAV.name||x.name,balance:parseFloat(editAV.balance)||x.balance}:x));setEditAId(null);}},React.createElement(SvgIcon,{name:"check",size:14}))
+              )
+            : React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
+                React.createElement("div",null,
+                  React.createElement("p",{style:{fontSize:11,color:"#94a3b8",fontWeight:500}},a.name),
+                  React.createElement("p",{style:{fontSize:20,fontWeight:700,color:"#1e293b"}},inr(a.balance))
+                ),
+                React.createElement("button",{className:"icon-btn",onClick:()=>{setEditAId(a.id);setEditAV({name:a.name,balance:String(a.balance)});}},React.createElement(SvgIcon,{name:"pencil",size:15}))
+              )
+        ))
+      )
+    ),
+
+    // Fixed Monthly
+    React.createElement(Sec,{title:"📌 Fixed Monthly",right:React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
+      React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},inr(fixedTotal)+"/mo"),
+      React.createElement("button",{onClick:()=>setShowAF(true),style:{width:24,height:24,borderRadius:"50%",background:"#4f46e5",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
+    )},
+      React.createElement(PBar,{done:fixedTotal-fixedPending,total:fixedTotal,color:"#10b981"}),
+      React.createElement("div",{style:{marginTop:8}},
+        fixed.map(f=>React.createElement(BRow,{key:f.id,item:f,editId:editFId,editV:editFV,setEditV:setEditFV,
+          onToggle:()=>setFixed(p=>p.map(x=>x.id===f.id?{...x,paid:!x.paid}:x)),
+          onEdit:()=>{setEditFId(f.id);setEditFV({name:f.name,amount:String(f.amount)});},
+          onSave:()=>{setFixed(p=>p.map(x=>x.id===f.id?{...x,name:editFV.name||x.name,amount:parseFloat(editFV.amount)||x.amount}:x));setEditFId(null);},
+          onDelete:()=>setFixed(p=>p.filter(x=>x.id!==f.id)),showNote:false}))
+      )
+    ),
+
+    // Variable
+    React.createElement(Sec,{title:"📊 Variable This Month",right:React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
+      React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},inr(varTotal)+" est."),
+      React.createElement("button",{onClick:()=>setShowAV(true),style:{width:24,height:24,borderRadius:"50%",background:"#7c3aed",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
+    )},
+      React.createElement("p",{style:{fontSize:11,color:"#94a3b8",marginBottom:8}},"Credit cards, medical, repairs, one-time bills."),
+      React.createElement(PBar,{done:varTotal-varPending,total:varTotal,color:"#7c3aed"}),
+      React.createElement("div",{style:{marginTop:8}},
+        varExp.length===0
+          ? React.createElement("p",{style:{textAlign:"center",color:"#94a3b8",fontSize:14,padding:"12px 0"}},"No variable expenses added yet.")
+          : varExp.map(v=>React.createElement(BRow,{key:v.id,item:v,editId:editVId,editV:editVV,setEditV:setEditVV,
+              onToggle:()=>setVarExp(p=>p.map(x=>x.id===v.id?{...x,paid:!x.paid}:x)),
+              onEdit:()=>{setEditVId(v.id);setEditVV({name:v.name,amount:String(v.amount),note:v.note||""});},
+              onSave:()=>{setVarExp(p=>p.map(x=>x.id===v.id?{...x,name:editVV.name||x.name,amount:parseFloat(editVV.amount)||x.amount,note:editVV.note}:x));setEditVId(null);},
+              onDelete:()=>setVarExp(p=>p.filter(x=>x.id!==v.id)),showNote:true}))
+      )
+    ),
+
+    // Recover
+    React.createElement(Sec,{title:"🔄 Money to Recover",right:React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
+      React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},"Pending: "+inr(toRecover)),
+      React.createElement("button",{onClick:()=>setShowAR(true),style:{width:24,height:24,borderRadius:"50%",background:"#f59e0b",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
+    )},
+      React.createElement("p",{style:{fontSize:11,color:"#94a3b8",marginBottom:8}},"Track money lent to friends, family, or reimbursements due."),
+      React.createElement("div",null,
+        recover.length===0
+          ? React.createElement("p",{style:{textAlign:"center",color:"#94a3b8",fontSize:14,padding:"12px 0"}},"No recoveries tracked.")
+          : recover.map(r=>{
+              const bColor = r.recovered?"#10b981":"#f59e0b";
+              return React.createElement("div",{key:r.id,className:"row-card",style:{borderLeftColor:bColor,marginBottom:8}},
+                editRId===r.id
+                  ? React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+                      React.createElement("div",{style:{display:"flex",gap:8}},
+                        React.createElement("input",{value:editRV.name,onChange:e=>setEditRV(v=>({...v,name:e.target.value})),placeholder:"Person",className:"input-field",style:{flex:1}}),
+                        React.createElement("div",{style:{position:"relative",width:100}},
+                          React.createElement("span",{className:"input-prefix",style:{fontSize:12}},"₹"),
+                          React.createElement("input",{type:"number",value:editRV.amount,onChange:e=>setEditRV(v=>({...v,amount:e.target.value})),className:"input-field",style:{paddingLeft:20,width:"100%"}})
+                        ),
+                        React.createElement("button",{className:"btn-primary",style:{width:38,padding:0,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>{setRecover(p=>p.map(x=>x.id===r.id?{...x,name:editRV.name||x.name,amount:parseFloat(editRV.amount)||x.amount,note:editRV.note}:x));setEditRId(null);}},React.createElement(SvgIcon,{name:"check",size:14}))
+                      ),
+                      React.createElement("input",{value:editRV.note||"",onChange:e=>setEditRV(v=>({...v,note:e.target.value})),placeholder:"Note",className:"input-field"})
+                    )
+                  : React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
+                      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,minWidth:0,flex:1}},
+                        React.createElement("button",{onClick:()=>setRecover(p=>p.map(x=>x.id===r.id?{...x,recovered:!x.recovered}:x)),className:"check-circle",style:{borderColor:bColor,background:r.recovered?"#10b981":"transparent"}},
+                          r.recovered&&React.createElement(SvgIcon,{name:"check",size:10})
+                        ),
+                        React.createElement("div",{style:{minWidth:0}},
+                          React.createElement("p",{style:{fontSize:13,fontWeight:500,color:r.recovered?"#94a3b8":"#1e293b",textDecoration:r.recovered?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.name),
+                          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                            React.createElement("span",{style:{fontSize:11,color:r.recovered?"#10b981":"#f59e0b"}},r.recovered?"Recovered":"Pending"),
+                            r.note&&React.createElement("span",{style:{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"· "+r.note)
+                          )
+                        )
+                      ),
+                      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
+                        React.createElement("span",{style:{fontSize:13,fontWeight:600,color:r.recovered?"#94a3b8":"#f59e0b"}}, r.amount>0?inr(r.amount):"TBD"),
+                        React.createElement("button",{className:"icon-btn",onClick:()=>{setEditRId(r.id);setEditRV({name:r.name,amount:String(r.amount),note:r.note||""});}},React.createElement(SvgIcon,{name:"pencil",size:13})),
+                        React.createElement("button",{className:"icon-btn danger",onClick:()=>setRecover(p=>p.filter(x=>x.id!==r.id))},React.createElement(SvgIcon,{name:"trash",size:13}))
+                      )
+                    )
+              );
+            })
+      )
+    ),
+
+    // Add Fixed Modal
+    showAF && React.createElement(Modal,{title:"Add Fixed Expense",onClose:()=>setShowAF(false),onSubmit:()=>{const a=parseFloat(newF.amount);if(!newF.name||!a)return;setFixed(p=>[...p,{id:uid(),name:newF.name.trim(),amount:a,paid:false}]);setNewF({name:"",amount:""});setShowAF(false);}},
+      React.createElement(Field,{label:"Name"},React.createElement("input",{type:"text",placeholder:"e.g. Netflix",value:newF.name,onChange:e=>setNewF(f=>({...f,name:e.target.value})),className:"input-field"})),
+      React.createElement(Field,{label:"Amount"},React.createElement(RupeeInput,{value:newF.amount,onChange:v=>setNewF(f=>({...f,amount:v}))}))
+    ),
+
+    // Add Variable Modal
+    showAV && React.createElement(Modal,{title:"Add Variable Expense",onClose:()=>setShowAV(false),onSubmit:()=>{const a=parseFloat(newV.amount);if(!newV.name||!a)return;setVarExp(p=>[...p,{id:uid(),name:newV.name.trim(),amount:a,note:newV.note.trim(),paid:false}]);setNewV({name:"",amount:"",note:""});setShowAV(false);}},
+      React.createElement(Field,{label:"Name"},React.createElement("input",{type:"text",placeholder:"e.g. Credit Card Bill",value:newV.name,onChange:e=>setNewV(f=>({...f,name:e.target.value})),className:"input-field"})),
+      React.createElement(Field,{label:"Estimated Amount"},React.createElement(RupeeInput,{value:newV.amount,onChange:v=>setNewV(f=>({...f,amount:v}))})),
+      React.createElement(Field,{label:"Note (optional)"},React.createElement("input",{type:"text",placeholder:"e.g. Due on 15th",value:newV.note,onChange:e=>setNewV(f=>({...f,note:e.target.value})),className:"input-field"}))
+    ),
+
+    // Add Recovery Modal
+    showAR && React.createElement(Modal,{title:"Add Recovery",onClose:()=>setShowAR(false),onSubmit:()=>{if(!newR.name)return;setRecover(p=>[...p,{id:uid(),name:newR.name.trim(),amount:parseFloat(newR.amount)||0,note:newR.note.trim(),recovered:false}]);setNewR({name:"",amount:"",note:""});setShowAR(false);}},
+      React.createElement(Field,{label:"Person / Name"},React.createElement("input",{type:"text",placeholder:"e.g. Rahul",value:newR.name,onChange:e=>setNewR(f=>({...f,name:e.target.value})),className:"input-field"})),
+      React.createElement(Field,{label:"Amount (0 if TBD)"},React.createElement(RupeeInput,{value:newR.amount,onChange:v=>setNewR(f=>({...f,amount:v}))})),
+      React.createElement(Field,{label:"Note (optional)"},React.createElement("input",{type:"text",placeholder:"e.g. Lent for trip",value:newR.note,onChange:e=>setNewR(f=>({...f,note:e.target.value})),className:"input-field"}))
+    )
+  );
+}
+
+// ─── Root App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab]         = useState("expenses");
+  const [exp, setExp]         = useState(() => lsGet("exp_v4", DEF_EXP));
+  const [acc, setAcc]         = useState(() => lsGet("ov_acc", DEF_ACC));
+  const [fixed, setFixed]     = useState(() => lsGet("ov_fixed", DEF_FIXED));
+  const [varExp, setVarExp]   = useState(() => lsGet("ov_var", DEF_VAR));
+  const [recover, setRecover] = useState(() => lsGet("ov_recover", DEF_RECOVER));
+  const [income, setIncome]   = useState(() => lsGet("ov_income", DEF_INCOME));
+  const [month, setMonth]     = useState("2026-07");
+
+  useEffect(()=>{ lsSet("exp_v4", exp); }, [exp]);
+  useEffect(()=>{ lsSet("ov_acc", acc); }, [acc]);
+  useEffect(()=>{ lsSet("ov_fixed", fixed); }, [fixed]);
+  useEffect(()=>{ lsSet("ov_var", varExp); }, [varExp]);
+  useEffect(()=>{ lsSet("ov_recover", recover); }, [recover]);
+  useEffect(()=>{ lsSet("ov_income", income); }, [income]);
+
+  const monthExp     = exp.filter(e=>mk(e.date)===month).sort((a,b)=>a.date<b.date?1:-1);
+  const total        = monthExp.reduce((s,e)=>s+e.amount, 0);
+  const bycat        = CATS.map(c=>({name:c.name,value:monthExp.filter(e=>e.category===c.name).reduce((s,e)=>s+e.amount,0),color:c.color})).filter(c=>c.value>0);
+  const totalBal     = acc.reduce((s,a)=>s+a.balance, 0);
+  const fixedPending = fixed.filter(f=>!f.paid).reduce((s,f)=>s+f.amount, 0);
+  const varPending   = varExp.filter(v=>!v.paid).reduce((s,v)=>s+v.amount, 0);
+  const allPending   = fixedPending + varPending;
+  const toRecover    = recover.filter(r=>!r.recovered).reduce((s,r)=>s+r.amount, 0);
+  const available    = totalBal - allPending;
+
+  return React.createElement("div", { id:"root" },
+    React.createElement("div", { className:"scroll-area" },
+      tab==="expenses"
+        ? React.createElement(ExpTab, { month, setMonth, monthExp, total, bycat, setExp })
+        : React.createElement(OvTab, { acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent:total, totalBal, fixedPending, varPending, allPending, available, toRecover })
+    ),
+    React.createElement("nav", { className:"bottom-nav" },
+      [
+        { key:"expenses", label:"Expenses",  icon:"receipt"   },
+        { key:"overview", label:"Overview",  icon:"dashboard" },
+      ].map(({key,label,icon}) =>
+        React.createElement("button", { key, className:"nav-btn "+(tab===key?"active":""), onClick:()=>setTab(key) },
+          React.createElement(SvgIcon, { name:icon, size:20 }),
+          React.createElement("span", null, label)
+        )
+      )
+    )
+  );
+}
+
+// ─── Mount ────────────────────────────────────────────────────────────────────
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
