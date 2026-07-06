@@ -63,6 +63,21 @@
     .btn-secondary { width: 100%; padding: 12px; border-radius: 12px; background: white; color: #475569; font-size: 14px; font-weight: 500; border: 1.5px solid #e2e8f0; cursor: pointer; font-family: inherit; }
     .pie-container { position: relative; width: 100%; display: flex; justify-content: center; }
     svg text { font-family: 'Inter', sans-serif; }
+
+    @keyframes slideDown {
+      from { transform: translate(-50%, -20px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+    .toast-banner {
+      animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glow-item {
+      animation: pulseGlow 1.8s ease-out;
+    }
+    @keyframes pulseGlow {
+      0% { background-color: #fef9c3; box-shadow: 0 0 12px rgba(250, 204, 21, 0.4); }
+      100% { background-color: white; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
+    }
   </style>
 </head>
 <body>
@@ -173,7 +188,7 @@ const icons = {
   chevL:     "M15 18l-6-6 6-6",
   chevR:     "M9 18l6-6-6-6",
   x:         "M18 6L6 18M6 6l12 12",
-  pencil:    "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z",
+  pencil:    "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z",
   check:     "M20 6L9 17l-5-5",
   trending:  "M23 6l-9.5 9.5-5-5L1 18",
   dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
@@ -272,13 +287,13 @@ function Field({ label, children }) {
   );
 }
 
-function RupeeInput({ value, onChange, placeholder="0" }) {
+function RupeeInput({ value, onChange, placeholder="0", isInvalid=false }) {
   return React.createElement("div", { style:{position:"relative"} },
     React.createElement("span", { className:"input-prefix" }, "₹"),
     React.createElement("input", {
       type:"number", inputMode:"decimal", placeholder,
       value, onChange: e=>onChange(e.target.value),
-      className:"input-field", style:{paddingLeft:28}
+      className:`input-field ${isInvalid ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200' : ''}`, style:{paddingLeft:28}
     })
   );
 }
@@ -290,22 +305,25 @@ function PBar({ done, total, color }) {
   );
 }
 
-function Sec({ title, right, children }) {
+// Section component with optional Warning Alert
+function Sec({ title, right, warningMsg, children }) {
   return React.createElement("div", { style:{marginTop:20} },
     React.createElement("div", { className:"sec-header" },
       React.createElement("span", { className:"sec-title" }, title),
       right
     ),
+    warningMsg && React.createElement("div", { className: "bg-rose-50 border border-rose-100 text-rose-600 rounded-xl px-3 py-2 text-xs font-medium mb-2" }, warningMsg),
     children
   );
 }
 
 // ─── BRow ────────────────────────────────────────────────────────────────────
-function BRow({ item, editId, editV, setEditV, onToggle, onEdit, onSave, onDelete, showNote }) {
+function BRow({ item, editId, editV, setEditV, onToggle, onEdit, onSave, onDelete, showNote, newlyAddedId }) {
   const isE = editId === item.id;
   const borderColor = item.paid ? "#10b981" : "#f97316";
+  const isNew = item.id === newlyAddedId;
 
-  return React.createElement("div", { className:"row-card", style:{borderLeftColor:borderColor,marginBottom:8} },
+  return React.createElement("div", { className:`row-card ${isNew ? 'glow-item' : ''}`, style:{borderLeftColor:borderColor,marginBottom:8} },
     isE
       ? React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:8} },
           React.createElement("div", { style:{display:"flex",gap:8} },
@@ -357,17 +375,42 @@ function BRow({ item, editId, editV, setEditV, onToggle, onEdit, onSave, onDelet
 }
 
 // ─── ExpTab ──────────────────────────────────────────────────────────────────
-function ExpTab({ month, setMonth, monthExp, total, bycat, setExp, onOpenSettings }) {
+function ExpTab({ month, setMonth, monthExp, total, bycat, setExp, onOpenSettings, syncStatus, newlyAddedId, showToast }) {
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ amount:"", category:CATS[0].name, description:"", date:td() });
+  const [amountInvalid, setAmountInvalid] = useState(false);
 
   function add() {
     const amt = parseFloat(form.amount);
-    if (!amt||amt<=0||!form.date) return;
-    setExp(p=>[...p,{id:uid(),amount:amt,category:form.category,description:form.description.trim(),date:form.date}]);
+    if (isNaN(amt) || amt <= 0) {
+      setAmountInvalid(true);
+      showToast("Please enter a valid amount greater than 0.", "error");
+      return;
+    }
+    if (amt > 99999999) {
+      setAmountInvalid(true);
+      showToast("Amount is too large (max ₹9,99,99,999).", "error");
+      return;
+    }
+    if (!form.date) {
+      showToast("Please select a valid date.", "error");
+      return;
+    }
+    const desc = form.description.trim() || form.category;
+    if (desc.length > 50) {
+      showToast("Description is too long (max 50 chars).", "error");
+      return;
+    }
+
+    setAmountInvalid(false);
+    setExp(p=>[...p,{id:uid(),amount:amt,category:form.category,description:desc,date:form.date}]);
     setForm({amount:"",category:CATS[0].name,description:"",date:td()});
     setShow(false);
+    showToast("Expense added successfully!", "success");
   }
+
+  // Visual status indicators
+  const statusColor = syncStatus === "synced" ? "#10b981" : syncStatus === "syncing" ? "#3b82f6" : syncStatus === "connecting" ? "#eab308" : syncStatus === "error" ? "#ef4444" : "#cbd5e1";
 
   return React.createElement("div", null,
     // Header gradient
@@ -381,8 +424,9 @@ function ExpTab({ month, setMonth, monthExp, total, bycat, setExp, onOpenSetting
           React.createElement(SvgIcon,{name:"wallet",size:18}),
           React.createElement("h1",{style:{fontSize:16,fontWeight:700}}, "Expense Tracker")
         ),
-        React.createElement("button", { onClick:onOpenSettings, style:{background:"none",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",padding:4} },
-          React.createElement(SvgIcon,{name:"settings",size:18})
+        React.createElement("button", { onClick:onOpenSettings, style:{background:"none",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",padding:4,position:"relative"} },
+          React.createElement(SvgIcon,{name:"settings",size:18}),
+          React.createElement("span", { style:{position:"absolute",top:0,right:0,width:7,height:7,borderRadius:"50%",background:statusColor,border:"1.5px solid #4f46e5"} })
         )
       ),
       // Month nav
@@ -435,7 +479,8 @@ function ExpTab({ month, setMonth, monthExp, total, bycat, setExp, onOpenSetting
         : React.createElement("div",null,
             monthExp.map(e=>{
               const cat = CATS.find(c=>c.name===e.category);
-              return React.createElement("div",{key:e.id,className:"card",style:{marginBottom:8,padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}},
+              const isNew = e.id === newlyAddedId;
+              return React.createElement("div",{key:e.id,className:`card ${isNew ? 'glow-item' : ''}`,style:{marginBottom:8,padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,minWidth:0}},
                   React.createElement("span",{style:{width:10,height:10,borderRadius:"50%",background:cat?.color||"#999",flexShrink:0}}),
                   React.createElement("div",{style:{minWidth:0}},
@@ -455,11 +500,11 @@ function ExpTab({ month, setMonth, monthExp, total, bycat, setExp, onOpenSetting
     ),
 
     // FAB
-    React.createElement("button",{className:"fab",onClick:()=>setShow(true)},"+"),
+    React.createElement("button",{className:"fab",onClick:()=> { setAmountInvalid(false); setShow(true); }},"+"),
 
     // Add Expense Modal
     show && React.createElement(Modal,{title:"Add Expense",onClose:()=>setShow(false),onSubmit:add},
-      React.createElement(Field,{label:"Amount"},React.createElement(RupeeInput,{value:form.amount,onChange:v=>setForm(f=>({...f,amount:v}))})),
+      React.createElement(Field,{label:"Amount"},React.createElement(RupeeInput,{value:form.amount,onChange:v=>{ setAmountInvalid(false); setForm(f=>({...f,amount:v})); },isInvalid:amountInvalid})),
       React.createElement(Field,{label:"Category"},
         React.createElement(CustomSelect, {
           value: form.category,
@@ -478,7 +523,7 @@ function ExpTab({ month, setMonth, monthExp, total, bycat, setExp, onOpenSetting
 }
 
 // ─── OvTab ───────────────────────────────────────────────────────────────────
-function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent, totalBal, fixedPending, varPending, allPending, available, toRecover, onOpenSettings }) {
+function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent, totalBal, fixedPending, varPending, allPending, available, toRecover, onOpenSettings, syncStatus, newlyAddedId, showToast }) {
   const [editIncome, setEditIncome] = useState(false);
   const [incomeVal, setIncomeVal] = useState("");
   const [editAId, setEditAId] = useState(null);
@@ -490,26 +535,36 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
   const [showAR, setShowAR] = useState(false); const [newR, setNewR] = useState({name:"",amount:"",note:""});
   const [editRId, setEditRId] = useState(null); const [editRV, setEditRV] = useState({name:"",amount:"",note:""});
 
+  const [formErrors, setFormErrors] = useState({ fixed: false, variable: false, recover: false });
+
   const fixedTotal = fixed.reduce((s,f)=>s+f.amount, 0);
   const varTotal   = varExp.reduce((s,v)=>s+v.amount, 0);
   const saved = income - monthlySpent;
-  const pct   = income>0 ? Math.max(0, Math.min(100, (saved/income)*100)) : 0;
   const spentPct = income>0 ? Math.min(100, (monthlySpent/income)*100) : 0;
+
+  // Visual status indicators
+  const statusColor = syncStatus === "synced" ? "#10b981" : syncStatus === "syncing" ? "#3b82f6" : syncStatus === "connecting" ? "#eab308" : syncStatus === "error" ? "#ef4444" : "#cbd5e1";
+
+  // Balance overflow/negative warning checks
+  const isOverspent = saved < 0;
+  const isNetLow = available < 0;
 
   return React.createElement("div",{style:{padding:"16px 14px"}},
     // Header row
     React.createElement("div", { style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12} },
       React.createElement("h1",{style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "Financial Overview"),
-      React.createElement("button", { onClick:onOpenSettings, style:{background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center",padding:4} },
-        React.createElement(SvgIcon,{name:"settings",size:18})
+      React.createElement("button", { onClick:onOpenSettings, style:{background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center",padding:4,position:"relative"} },
+        React.createElement(SvgIcon,{name:"settings",size:18}),
+        React.createElement("span", { style:{position:"absolute",top:0,right:0,width:7,height:7,borderRadius:"50%",background:statusColor,border:"1.5px solid #f1f5f9"} })
       )
     ),
 
     // Summary Card
     React.createElement("div",{style:{
-      background:"linear-gradient(135deg,#059669 0%,#0d9488 100%)",
+      background: isOverspent ? "linear-gradient(135deg, #be123c 0%, #9f1239 100%)" : "linear-gradient(135deg,#059669 0%,#0d9488 100%)",
       color:"white",borderRadius:20,padding:16,
-      boxShadow:"0 8px 32px rgba(5,150,105,0.28)"
+      boxShadow: isOverspent ? "0 8px 32px rgba(225,29,72,0.25)" : "0 8px 32px rgba(5,150,105,0.28)",
+      transition: "background 0.5s ease"
     }},
       // Income row
       React.createElement("div",{style:{background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"10px 12px",marginBottom:12}},
@@ -518,7 +573,7 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
           ? React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
               React.createElement("span",{style:{fontSize:14}},"₹"),
               React.createElement("input",{autoFocus:true,type:"number",value:incomeVal,onChange:e=>setIncomeVal(e.target.value),style:{background:"rgba(255,255,255,0.2)",color:"white",border:"none",borderRadius:8,padding:"4px 8px",fontSize:15,width:140,outline:"none"}}),
-              React.createElement("button",{onClick:()=>{const v=parseFloat(incomeVal);if(v>0)setIncome(v);setEditIncome(false);},style:{background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",color:"white",width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"check",size:13}))
+              React.createElement("button",{onClick:()=>{const v=parseFloat(incomeVal);if(isNaN(v)||v<=0){showToast("Please enter a valid income amount.","error");return;}if(v>99999999){showToast("Income amount too large.","error");return;}setIncome(v);setEditIncome(false);showToast("Income updated.","success");},style:{background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",color:"white",width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"check",size:13}))
             )
           : React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
               React.createElement("p",{style:{fontSize:22,fontWeight:800}}, inr(income)),
@@ -530,18 +585,23 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
       React.createElement("div",{style:{marginBottom:12}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,color:"rgba(255,255,255,0.8)",marginBottom:4}},
           React.createElement("span","Spent: "+inr(monthlySpent)),
-          React.createElement("span",{style:{color:saved>=0?"#fef08a":"#fca5a5",fontWeight:600}}, (saved>=0?"Saved: ":"Overspent: ")+inr(Math.abs(saved)))
+          React.createElement("span",{style:{color:saved>=0?"#fef08a":"#fecdd3",fontWeight:600}}, (saved>=0?"Saved: ":"Overspent: ")+inr(Math.abs(saved)))
         ),
         React.createElement("div",{style:{background:"rgba(255,255,255,0.2)",borderRadius:99,height:8,overflow:"hidden"}},
-          React.createElement("div",{style:{background:"#fef08a",height:8,borderRadius:99,width:`${spentPct}%`,transition:"width 0.5s"}})
+          React.createElement("div",{style:{background:saved>=0?"#fef08a":"#fda4af",height:8,borderRadius:99,width:`${spentPct}%`,transition:"width 0.5s"}})
         )
       ),
 
       React.createElement("p",{style:{color:"rgba(255,255,255,0.7)",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em"}},"Net Available"),
-      React.createElement("p",{style:{fontSize:26,fontWeight:800,margin:"2px 0 10px"}}, inr(available)),
+      React.createElement("p",{style:{fontSize:26,fontWeight:800,margin:"2px 0 10px",color:isNetLow?"#fecdd3":"white"}}, inr(available)),
 
       React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-        [["Bank Balance",totalBal,"white"],["Pending Outgo",allPending,"white"],["To Recover",toRecover,"#fef08a"],["Net + Recovery",available+toRecover,"white"]].map(([l,v,clr])=>
+        [
+          ["Bank Balance",totalBal,"white"],
+          ["Pending Outgo",allPending,"white"],
+          ["To Recover",toRecover,"#fef08a"],
+          ["Net + Recovery",available+toRecover,"white"]
+        ].map(([l,v,clr])=>
           React.createElement("div",{key:l,style:{background:"rgba(255,255,255,0.12)",borderRadius:12,padding:"8px 10px"}},
             React.createElement("p",{style:{fontSize:10,color:"rgba(255,255,255,0.7)",lineHeight:1.3}},l),
             React.createElement("p",{style:{fontSize:12,fontWeight:700,color:clr,marginTop:2}},inr(v))
@@ -553,46 +613,71 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
     // Accounts
     React.createElement(Sec,{title:"💳 Account Balances",right:React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},"Total: "+inr(totalBal))},
       React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
-        acc.map(a=>React.createElement("div",{key:a.id,className:"card",style:{padding:14}},
-          editAId===a.id
-            ? React.createElement("div",{style:{display:"flex",gap:8}},
-                React.createElement("input",{value:editAV.name,onChange:e=>setEditAV(v=>({...v,name:e.target.value})),placeholder:"Name",className:"input-field",style:{flex:1}}),
-                React.createElement("div",{style:{position:"relative",width:110}},
-                  React.createElement("span",{className:"input-prefix",style:{fontSize:12}},"₹"),
-                  React.createElement("input",{type:"number",value:editAV.balance,onChange:e=>setEditAV(v=>({...v,balance:e.target.value})),className:"input-field",style:{paddingLeft:20,width:"100%"}})
-                ),
-                React.createElement("button",{className:"btn-primary",style:{width:38,padding:0,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>{setAcc(p=>p.map(x=>x.id===a.id?{...x,name:editAV.name||x.name,balance:parseFloat(editAV.balance)||x.balance}:x));setEditAId(null);}},React.createElement(SvgIcon,{name:"check",size:14}))
-              )
-            : React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
-                React.createElement("div",null,
-                  React.createElement("p",{style:{fontSize:11,color:"#94a3b8",fontWeight:500}},a.name),
-                  React.createElement("p",{style:{fontSize:20,fontWeight:700,color:"#1e293b"}},inr(a.balance))
-                ),
-                React.createElement("button",{className:"icon-btn",onClick:()=>{setEditAId(a.id);setEditAV({name:a.name,balance:String(a.balance)});}},React.createElement(SvgIcon,{name:"pencil",size:15}))
-              )
-        ))
+        acc.map(a=>{
+          const isNew = a.id === newlyAddedId;
+          return React.createElement("div",{key:a.id,className:`card ${isNew ? 'glow-item' : ''}`,style:{padding:14}},
+            editAId===a.id
+              ? React.createElement("div",{style:{display:"flex",gap:8}},
+                  React.createElement("input",{value:editAV.name,onChange:e=>setEditAV(v=>({...v,name:e.target.value})),placeholder:"Name",className:"input-field",style:{flex:1}}),
+                  React.createElement("div",{style:{position:"relative",width:110}},
+                    React.createElement("span",{className:"input-prefix",style:{fontSize:12}},"₹"),
+                    React.createElement("input",{type:"number",value:editAV.balance,onChange:e=>setEditAV(v=>({...v,balance:e.target.value})),className:"input-field",style:{paddingLeft:20,width:"100%"}})
+                  ),
+                  React.createElement("button",{className:"btn-primary",style:{width:38,padding:0,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>{
+                    const balVal = parseFloat(editAV.balance);
+                    const nameVal = editAV.name.trim();
+                    if(!nameVal) { showToast("Account name cannot be empty.", "error"); return; }
+                    if(isNaN(balVal)) { showToast("Invalid balance amount.", "error"); return; }
+                    if(acc.some(x=>x.id!==a.id && x.name.toLowerCase()===nameVal.toLowerCase())) { showToast("An account with this name already exists.", "error"); return; }
+                    setAcc(p=>p.map(x=>x.id===a.id?{...x,name:nameVal,balance:balVal}:x));
+                    setEditAId(null);
+                    showToast("Account balance updated.", "success");
+                  }},React.createElement(SvgIcon,{name:"check",size:14}))
+                )
+              : React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
+                  React.createElement("div",null,
+                    React.createElement("p",{style:{fontSize:11,color:"#94a3b8",fontWeight:500}},a.name),
+                    React.createElement("p",{style:{fontSize:20,fontWeight:700,color:a.balance < 0 ? "#ef4444" : "#1e293b"}},inr(a.balance))
+                  ),
+                  React.createElement("button",{className:"icon-btn",onClick:()=>{setEditAId(a.id);setEditAV({name:a.name,balance:String(a.balance)});}},React.createElement(SvgIcon,{name:"pencil",size:15}))
+                )
+          );
+        })
       )
     ),
 
     // Fixed Monthly
     React.createElement(Sec,{title:"📌 Fixed Monthly",right:React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
       React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},inr(fixedTotal)+"/mo"),
-      React.createElement("button",{onClick:()=>setShowAF(true),style:{width:24,height:24,borderRadius:"50%",background:"#4f46e5",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
+      React.createElement("button",{onClick:()=>{ setFormErrors(e=>({...e, fixed:false})); setShowAF(true); },style:{width:24,height:24,borderRadius:"50%",background:"#4f46e5",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
     )},
       React.createElement(PBar,{done:fixedTotal-fixedPending,total:fixedTotal,color:"#10b981"}),
       React.createElement("div",{style:{marginTop:8}},
         fixed.map(f=>React.createElement(BRow,{key:f.id,item:f,editId:editFId,editV:editFV,setEditV:setEditFV,
           onToggle:()=>setFixed(p=>p.map(x=>x.id===f.id?{...x,paid:!x.paid}:x)),
           onEdit:()=>{setEditFId(f.id);setEditFV({name:f.name,amount:String(f.amount)});},
-          onSave:()=>{setFixed(p=>p.map(x=>x.id===f.id?{...x,name:editFV.name||x.name,amount:parseFloat(editFV.amount)||x.amount}:x));setEditFId(null);},
-          onDelete:()=>setFixed(p=>p.filter(x=>x.id!==f.id)),showNote:false}))
+          onSave:()=>{
+            const amtVal = parseFloat(editFV.amount);
+            const nameVal = editFV.name.trim();
+            if(!nameVal) { showToast("Name cannot be empty.", "error"); return; }
+            if(isNaN(amtVal)||amtVal<=0) { showToast("Please enter a valid amount.", "error"); return; }
+            setFixed(p=>p.map(x=>x.id===f.id?{...x,name:nameVal,amount:amtVal}:x));
+            setEditFId(null);
+            showToast("Fixed item updated.", "success");
+          },
+          onDelete:()=> {
+            if(confirm(`Remove ${f.name}?`)) {
+              setFixed(p=>p.filter(x=>x.id!==f.id));
+              showToast("Fixed item deleted.", "success");
+            }
+          },showNote:false, newlyAddedId}))
       )
     ),
 
     // Variable
     React.createElement(Sec,{title:"📊 Variable This Month",right:React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
       React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},inr(varTotal)+" est."),
-      React.createElement("button",{onClick:()=>setShowAV(true),style:{width:24,height:24,borderRadius:"50%",background:"#7c3aed",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
+      React.createElement("button",{onClick:()=>{ setFormErrors(e=>({...e, variable:false})); setShowAV(true); },style:{width:24,height:24,borderRadius:"50%",background:"#7c3aed",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
     )},
       React.createElement("p",{style:{fontSize:11,color:"#94a3b8",marginBottom:8}},"Credit cards, medical, repairs, one-time bills."),
       React.createElement(PBar,{done:varTotal-varPending,total:varTotal,color:"#7c3aed"}),
@@ -602,15 +687,28 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
           : varExp.map(v=>React.createElement(BRow,{key:v.id,item:v,editId:editVId,editV:editVV,setEditV:setEditVV,
               onToggle:()=>setVarExp(p=>p.map(x=>x.id===v.id?{...x,paid:!x.paid}:x)),
               onEdit:()=>{setEditVId(v.id);setEditVV({name:v.name,amount:String(v.amount),note:v.note||""});},
-              onSave:()=>{setVarExp(p=>p.map(x=>x.id===v.id?{...x,name:editVV.name||x.name,amount:parseFloat(editVV.amount)||x.amount,note:editVV.note}:x));setEditVId(null);},
-              onDelete:()=>setVarExp(p=>p.filter(x=>x.id!==v.id)),showNote:true}))
+              onSave:()=>{
+                const amtVal = parseFloat(editVV.amount);
+                const nameVal = editVV.name.trim();
+                if(!nameVal) { showToast("Name cannot be empty.", "error"); return; }
+                if(isNaN(amtVal)||amtVal<=0) { showToast("Please enter a valid amount.", "error"); return; }
+                setVarExp(p=>p.map(x=>x.id===v.id?{...x,name:nameVal,amount:amtVal,note:editVV.note.trim()}:x));
+                setEditVId(null);
+                showToast("Variable item updated.", "success");
+              },
+              onDelete:()=> {
+                if(confirm(`Remove ${v.name}?`)) {
+                  setVarExp(p=>p.filter(x=>x.id!==v.id));
+                  showToast("Variable item deleted.", "success");
+                }
+              },showNote:true, newlyAddedId}))
       )
     ),
 
     // Recover
-    React.createElement(Sec,{title:"🔄 Money to Recover",right:React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
+    React.createElement(Sec,{title:"🔄 Money to Recover",warningMsg: toRecover > 0 ? `Unrecovered funds total ${inr(toRecover)}. Follow up to settle.` : null,right:React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
       React.createElement("span",{style:{fontSize:11,color:"#94a3b8"}},"Pending: "+inr(toRecover)),
-      React.createElement("button",{onClick:()=>setShowAR(true),style:{width:24,height:24,borderRadius:"50%",background:"#f59e0b",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
+      React.createElement("button",{onClick:()=>{ setFormErrors(e=>({...e, recover:false})); setShowAR(true); },style:{width:24,height:24,borderRadius:"50%",background:"#f59e0b",border:"none",color:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}},React.createElement(SvgIcon,{name:"plus",size:13}))
     )},
       React.createElement("p",{style:{fontSize:11,color:"#94a3b8",marginBottom:8}},"Track money lent to friends, family, or reimbursements due."),
       React.createElement("div",null,
@@ -618,7 +716,8 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
           ? React.createElement("p",{style:{textAlign:"center",color:"#94a3b8",fontSize:14,padding:"12px 0"}},"No recoveries tracked.")
           : recover.map(r=>{
               const bColor = r.recovered?"#10b981":"#f59e0b";
-              return React.createElement("div",{key:r.id,className:"row-card",style:{borderLeftColor:bColor,marginBottom:8}},
+              const isNew = r.id === newlyAddedId;
+              return React.createElement("div",{key:r.id,className:`row-card ${isNew ? 'glow-item' : ''}`,style:{borderLeftColor:bColor,marginBottom:8}},
                 editRId===r.id
                   ? React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
                       React.createElement("div",{style:{display:"flex",gap:8}},
@@ -627,7 +726,15 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
                           React.createElement("span",{className:"input-prefix",style:{fontSize:12}},"₹"),
                           React.createElement("input",{type:"number",value:editRV.amount,onChange:e=>setEditRV(v=>({...v,amount:e.target.value})),className:"input-field",style:{paddingLeft:20,width:"100%"}})
                         ),
-                        React.createElement("button",{className:"btn-primary",style:{width:38,padding:0,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>{setRecover(p=>p.map(x=>x.id===r.id?{...x,name:editRV.name||x.name,amount:parseFloat(editRV.amount)||x.amount,note:editRV.note}:x));setEditRId(null);}},React.createElement(SvgIcon,{name:"check",size:14}))
+                        React.createElement("button",{className:"btn-primary",style:{width:38,padding:0,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>{
+                          const amtVal = parseFloat(editRV.amount) || 0;
+                          const nameVal = editRV.name.trim();
+                          if(!nameVal) { showToast("Person's name cannot be empty.", "error"); return; }
+                          if(amtVal < 0) { showToast("Amount cannot be negative.", "error"); return; }
+                          setRecover(p=>p.map(x=>x.id===r.id?{...x,name:nameVal,amount:amtVal,note:editRV.note.trim()}:x));
+                          setEditRId(null);
+                          showToast("Recovery updated.", "success");
+                        }},React.createElement(SvgIcon,{name:"check",size:14}))
                       ),
                       React.createElement("input",{value:editRV.note||"",onChange:e=>setEditRV(v=>({...v,note:e.target.value})),placeholder:"Note",className:"input-field"})
                     )
@@ -647,7 +754,12 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
                       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
                         React.createElement("span",{style:{fontSize:13,fontWeight:600,color:r.recovered?"#94a3b8":"#f59e0b"}}, r.amount>0?inr(r.amount):"TBD"),
                         React.createElement("button",{className:"icon-btn",onClick:()=>{setEditRId(r.id);setEditRV({name:r.name,amount:String(r.amount),note:r.note||""});}},React.createElement(SvgIcon,{name:"pencil",size:13})),
-                        React.createElement("button",{className:"icon-btn danger",onClick:()=>setRecover(p=>p.filter(x=>x.id!==r.id))},React.createElement(SvgIcon,{name:"trash",size:13}))
+                        React.createElement("button",{className:"icon-btn danger",onClick:()=> {
+                          if(confirm(`Remove recovery for ${r.name}?`)) {
+                            setRecover(p=>p.filter(x=>x.id!==r.id));
+                            showToast("Recovery tracking removed.", "success");
+                          }
+                        }},React.createElement(SvgIcon,{name:"trash",size:13}))
                       )
                     )
               );
@@ -656,22 +768,55 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
     ),
 
     // Add Fixed Modal
-    showAF && React.createElement(Modal,{title:"Add Fixed Expense",onClose:()=>setShowAF(false),onSubmit:()=>{const a=parseFloat(newF.amount);if(!newF.name||!a)return;setFixed(p=>[...p,{id:uid(),name:newF.name.trim(),amount:a,paid:false}]);setNewF({name:"",amount:""});setShowAF(false);}},
-      React.createElement(Field,{label:"Name"},React.createElement("input",{type:"text",placeholder:"e.g. Netflix",value:newF.name,onChange:e=>setNewF(f=>({...f,name:e.target.value})),className:"input-field"})),
-      React.createElement(Field,{label:"Amount"},React.createElement(RupeeInput,{value:newF.amount,onChange:v=>setNewF(f=>({...f,amount:v}))}))
+    showAF && React.createElement(Modal,{title:"Add Fixed Expense",onClose:()=>setShowAF(false),onSubmit:()=>{
+      const a=parseFloat(newF.amount);
+      const nameVal = newF.name.trim();
+      if(!nameVal) { setFormErrors(e=>({...e, fixed:true})); showToast("Name cannot be empty.","error"); return; }
+      if(isNaN(a)||a<=0) { setFormErrors(e=>({...e, fixed:true})); showToast("Please enter a valid amount.","error"); return; }
+      if(a>9999999) { setFormErrors(e=>({...e, fixed:true})); showToast("Amount is too large.","error"); return; }
+      const newId = uid();
+      setFixed(p=>[...p,{id:newId,name:nameVal,amount:a,paid:false}]);
+      setNewF({name:"",amount:""});
+      setShowAF(false);
+      showToast("Fixed expense item added!", "success");
+    }},
+      React.createElement(Field,{label:"Name"},React.createElement("input",{type:"text",placeholder:"e.g. Netflix",value:newF.name,onChange:e=>{ setFormErrors(e=>({...e, fixed:false})); setNewF(f=>({...f,name:e.target.value})); },className:`input-field ${formErrors.fixed && !newF.name.trim() ? 'border-rose-400' : ''}`})),
+      React.createElement(Field,{label:"Amount"},React.createElement(RupeeInput,{value:newF.amount,onChange:v=>{ setFormErrors(e=>({...e, fixed:false})); setNewF(f=>({...f,amount:v})); },isInvalid:formErrors.fixed && (isNaN(parseFloat(newF.amount)) || parseFloat(newF.amount)<=0)}))
     ),
 
     // Add Variable Modal
-    showAV && React.createElement(Modal,{title:"Add Variable Expense",onClose:()=>setShowAV(false),onSubmit:()=>{const a=parseFloat(newV.amount);if(!newV.name||!a)return;setVarExp(p=>[...p,{id:uid(),name:newV.name.trim(),amount:a,note:newV.note.trim(),paid:false}]);setNewV({name:"",amount:"",note:""});setShowAV(false);}},
-      React.createElement(Field,{label:"Name"},React.createElement("input",{type:"text",placeholder:"e.g. Credit Card Bill",value:newV.name,onChange:e=>setNewV(f=>({...f,name:e.target.value})),className:"input-field"})),
-      React.createElement(Field,{label:"Estimated Amount"},React.createElement(RupeeInput,{value:newV.amount,onChange:v=>setNewV(f=>({...f,amount:v}))})),
+    showAV && React.createElement(Modal,{title:"Add Variable Expense",onClose:()=>setShowAV(false),onSubmit:()=>{
+      const a=parseFloat(newV.amount);
+      const nameVal = newV.name.trim();
+      if(!nameVal) { setFormErrors(e=>({...e, variable:true})); showToast("Name cannot be empty.","error"); return; }
+      if(isNaN(a)||a<=0) { setFormErrors(e=>({...e, variable:true})); showToast("Please enter a valid amount.","error"); return; }
+      if(a>9999999) { setFormErrors(e=>({...e, variable:true})); showToast("Amount is too large.","error"); return; }
+      const newId = uid();
+      setVarExp(p=>[...p,{id:newId,name:nameVal,amount:a,note:newV.note.trim(),paid:false}]);
+      setNewV({name:"",amount:"",note:""});
+      setShowAV(false);
+      showToast("Variable expense item added!", "success");
+    }},
+      React.createElement(Field,{label:"Name"},React.createElement("input",{type:"text",placeholder:"e.g. Credit Card Bill",value:newV.name,onChange:e=>{ setFormErrors(e=>({...e, variable:false})); setNewV(f=>({...f,name:e.target.value})); },className:`input-field ${formErrors.variable && !newV.name.trim() ? 'border-rose-400' : ''}`})),
+      React.createElement(Field,{label:"Estimated Amount"},React.createElement(RupeeInput,{value:newV.amount,onChange:v=>{ setFormErrors(e=>({...e, variable:false})); setNewV(f=>({...f,amount:v})); },isInvalid:formErrors.variable && (isNaN(parseFloat(newV.amount)) || parseFloat(newV.amount)<=0)})),
       React.createElement(Field,{label:"Note (optional)"},React.createElement("input",{type:"text",placeholder:"e.g. Due on 15th",value:newV.note,onChange:e=>setNewV(f=>({...f,note:e.target.value})),className:"input-field"}))
     ),
 
     // Add Recovery Modal
-    showAR && React.createElement(Modal,{title:"Add Recovery",onClose:()=>setShowAR(false),onSubmit:()=>{if(!newR.name)return;setRecover(p=>[...p,{id:uid(),name:newR.name.trim(),amount:parseFloat(newR.amount)||0,note:newR.note.trim(),recovered:false}]);setNewR({name:"",amount:"",note:""});setShowAR(false);}},
-      React.createElement(Field,{label:"Person / Name"},React.createElement("input",{type:"text",placeholder:"e.g. Rahul",value:newR.name,onChange:e=>setNewR(f=>({...f,name:e.target.value})),className:"input-field"})),
-      React.createElement(Field,{label:"Amount (0 if TBD)"},React.createElement(RupeeInput,{value:newR.amount,onChange:v=>setNewR(f=>({...f,amount:v}))})),
+    showAR && React.createElement(Modal,{title:"Add Recovery",onClose:()=>setShowAR(false),onSubmit:()=>{
+      const nameVal = newR.name.trim();
+      const a = parseFloat(newR.amount) || 0;
+      if(!nameVal) { setFormErrors(e=>({...e, recover:true})); showToast("Name cannot be empty.","error"); return; }
+      if(a < 0) { setFormErrors(e=>({...e, recover:true})); showToast("Amount cannot be negative.","error"); return; }
+      if(a > 9999999) { setFormErrors(e=>({...e, recover:true})); showToast("Amount is too large.","error"); return; }
+      const newId = uid();
+      setRecover(p=>[...p,{id:newId,name:nameVal,amount:a,note:newR.note.trim(),recovered:false}]);
+      setNewR({name:"",amount:"",note:""});
+      setShowAR(false);
+      showToast("Recovery transaction added!", "success");
+    }},
+      React.createElement(Field,{label:"Person / Name"},React.createElement("input",{type:"text",placeholder:"e.g. Rahul",value:newR.name,onChange:e=>{ setFormErrors(e=>({...e, recover:false})); setNewR(f=>({...f,name:e.target.value})); },className:`input-field ${formErrors.recover && !newR.name.trim() ? 'border-rose-400' : ''}`})),
+      React.createElement(Field,{label:"Amount (0 if TBD)"},React.createElement(RupeeInput,{value:newR.amount,onChange:v=>{ setFormErrors(e=>({...e, recover:false})); setNewR(f=>({...f,amount:v})); },isInvalid:formErrors.recover && parseFloat(newR.amount)<0})),
       React.createElement(Field,{label:"Note (optional)"},React.createElement("input",{type:"text",placeholder:"e.g. Lent for trip",value:newR.note,onChange:e=>setNewR(f=>({...f,note:e.target.value})),className:"input-field"}))
     )
   );
@@ -681,6 +826,7 @@ function OvTab({ acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRe
 function SettingsModal({ settings, onClose, onSave, onGenerateShareLink, shareLinkState }) {
   const [syncKey, setSyncKey] = useState(settings.syncKey || "");
   const [firebaseConfig, setFirebaseConfig] = useState(settings.firebaseConfig || "");
+  const [copyText, setCopyText] = useState("Copy");
 
   const handleSave = () => {
     onSave({ syncKey: syncKey.trim(), firebaseConfig: firebaseConfig.trim() });
@@ -688,7 +834,8 @@ function SettingsModal({ settings, onClose, onSave, onGenerateShareLink, shareLi
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareLinkState.link).then(() => {
-      alert("Sharing link copied to clipboard!");
+      setCopyText("Copied! ✓");
+      setTimeout(() => setCopyText("Copy"), 2000);
     });
   };
 
@@ -756,7 +903,7 @@ function SettingsModal({ settings, onClose, onSave, onGenerateShareLink, shareLi
               className: "btn-primary",
               onClick: handleCopy,
               style: { width: "auto", padding: "0 16px" }
-            }, "Copy")
+            }, copyText)
           ),
           React.createElement("p", { style: { fontSize: 11, color: "#10b981", fontWeight: 600, marginTop: 4 } },
             "✅ Send this link to other devices to connect them to this sync key."
@@ -789,6 +936,11 @@ function App() {
   const [shareLinkState, setShareLinkState] = useState({ loading: false, link: "" });
   const [toast, setToast] = useState(null);
 
+  // Sync status state: 'offline' | 'connecting' | 'synced' | 'syncing' | 'error'
+  const [syncStatus, setSyncStatus] = useState("offline");
+  // Highlight newly added items
+  const [newlyAddedId, setNewlyAddedId] = useState(null);
+
   const lastRemoteData = useRef("");
   const firebaseSyncRef = useRef(null);
   const firebaseDbRef = useRef(null);
@@ -796,6 +948,12 @@ function App() {
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  // Triggers highlighting of a newly added record
+  const triggerGlow = (id) => {
+    setNewlyAddedId(id);
+    setTimeout(() => setNewlyAddedId(null), 1800);
   };
 
   // URL Hash loading checks (load configuration shares on mount)
@@ -809,7 +967,6 @@ function App() {
         if (configObj && configObj.settings) {
           setSettings(configObj.settings);
           lsSet("aura_settings_v1", configObj.settings);
-          // Clear hash in URL bar safely
           history.replaceState(null, "", window.location.pathname);
           showToast("Successfully loaded cloud sync settings!", "success");
         }
@@ -822,7 +979,10 @@ function App() {
 
   // Firebase Setup & Realtime DB Listening
   useEffect(() => {
-    if (typeof firebase === "undefined") return;
+    if (typeof firebase === "undefined") {
+      setSyncStatus("offline");
+      return;
+    }
 
     const configStr = settings.firebaseConfig;
     const syncKey = settings.syncKey;
@@ -835,19 +995,24 @@ function App() {
 
     if (!configStr) {
       console.log("Firebase config not set. Offline mode.");
+      setSyncStatus("offline");
       return;
     }
 
     try {
       const config = parseFirebaseConfig(configStr);
       if (!config) {
+        setSyncStatus("error");
         showToast("Invalid Firebase configuration format.", "error");
         return;
       }
       if (!config.databaseURL) {
+        setSyncStatus("error");
         showToast("Firebase Config: Missing 'databaseURL'.", "error");
         return;
       }
+
+      setSyncStatus("connecting");
 
       // Re-initialize firebase app cleanly
       const initApp = () => {
@@ -866,6 +1031,7 @@ function App() {
         firebaseSyncRef.current = ref;
 
         showToast("⚡ Cloud Sync Active!", "success");
+        setSyncStatus("synced");
 
         ref.on("value", snapshot => {
           const data = snapshot.val();
@@ -874,6 +1040,7 @@ function App() {
             if (dataStr !== lastRemoteData.current) {
               lastRemoteData.current = dataStr;
               
+              // Handle incoming cloud sync updates
               if (data.exp) setExp(data.exp);
               if (data.acc) setAcc(data.acc);
               if (data.fixed) setFixed(data.fixed);
@@ -881,6 +1048,7 @@ function App() {
               if (data.recover) setRecover(data.recover);
               if (data.income !== undefined) setIncome(data.income);
               
+              setSyncStatus("synced");
               showToast("Cloud sync loaded latest updates!", "success");
             }
           } else {
@@ -888,10 +1056,12 @@ function App() {
             const initialData = { exp, acc, fixed, varExp, recover, income };
             ref.set(initialData).then(() => {
               lastRemoteData.current = JSON.stringify(initialData);
+              setSyncStatus("synced");
             });
           }
         }, err => {
           console.error("Firebase RTDB sync error:", err);
+          setSyncStatus("error");
           showToast("Sync Error: " + err.message, "error");
         });
       };
@@ -904,6 +1074,7 @@ function App() {
 
     } catch (e) {
       console.error("Firebase setup failed:", e);
+      setSyncStatus("error");
       showToast("Firebase initialization failed.", "error");
     }
 
@@ -928,14 +1099,54 @@ function App() {
 
     if (firebaseDbRef.current && firebaseSyncRef.current) {
       if (localStr !== lastRemoteData.current) {
+        setSyncStatus("syncing");
         firebaseSyncRef.current.set(localData).then(() => {
           lastRemoteData.current = localStr;
+          setSyncStatus("synced");
         }).catch(err => {
           console.error("Failed to push changes to Firebase:", err);
+          setSyncStatus("error");
         });
       }
     }
   }, [exp, acc, fixed, varExp, recover, income]);
+
+  // Intercept and glow new items on array additions
+  const prevExpLen = useRef(exp.length);
+  useEffect(() => {
+    if (exp.length > prevExpLen.current) {
+      const added = exp[exp.length - 1];
+      if (added && added.id) triggerGlow(added.id);
+    }
+    prevExpLen.current = exp.length;
+  }, [exp]);
+
+  const prevFixedLen = useRef(fixed.length);
+  useEffect(() => {
+    if (fixed.length > prevFixedLen.current) {
+      const added = fixed[fixed.length - 1];
+      if (added && added.id) triggerGlow(added.id);
+    }
+    prevFixedLen.current = fixed.length;
+  }, [fixed]);
+
+  const prevVarLen = useRef(varExp.length);
+  useEffect(() => {
+    if (varExp.length > prevVarLen.current) {
+      const added = varExp[varExp.length - 1];
+      if (added && added.id) triggerGlow(added.id);
+    }
+    prevVarLen.current = varExp.length;
+  }, [varExp]);
+
+  const prevRecoverLen = useRef(recover.length);
+  useEffect(() => {
+    if (recover.length > prevRecoverLen.current) {
+      const added = recover[recover.length - 1];
+      if (added && added.id) triggerGlow(added.id);
+    }
+    prevRecoverLen.current = recover.length;
+  }, [recover]);
 
   const monthExp     = exp.filter(e=>mk(e.date)===month).sort((a,b)=>a.date<b.date?1:-1);
   const total        = monthExp.reduce((s,e)=>s+e.amount, 0);
@@ -985,6 +1196,7 @@ function App() {
   return React.createElement("div", { id:"root" },
     // Custom Toast Banner
     toast && React.createElement("div", {
+      className: "toast-banner",
       style: {
         position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
         background: toast.type === "success" ? "linear-gradient(135deg, #059669 0%, #0d9488 100%)" : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
@@ -996,8 +1208,8 @@ function App() {
 
     React.createElement("div", { className:"scroll-area" },
       tab==="expenses"
-        ? React.createElement(ExpTab, { month, setMonth, monthExp, total, bycat, setExp, onOpenSettings: handleOpenSettings })
-        : React.createElement(OvTab, { acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent:total, totalBal, fixedPending, varPending, allPending, available, toRecover, onOpenSettings: handleOpenSettings })
+        ? React.createElement(ExpTab, { month, setMonth, monthExp, total, bycat, setExp, onOpenSettings: handleOpenSettings, syncStatus, newlyAddedId, showToast })
+        : React.createElement(OvTab, { acc, setAcc, fixed, setFixed, varExp, setVarExp, recover, setRecover, income, setIncome, monthlySpent:total, totalBal, fixedPending, varPending, allPending, available, toRecover, onOpenSettings: handleOpenSettings, syncStatus, newlyAddedId, showToast })
     ),
 
     React.createElement("nav", { className:"bottom-nav" },
