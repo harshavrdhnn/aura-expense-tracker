@@ -1553,25 +1553,19 @@ export default function App() {
       return monthlyData[month];
     }
     
-    // Fallback search for closest past month's configuration
-    const sortedMonths = Object.keys(monthlyData).sort();
-    const prevMonths = sortedMonths.filter(m => m < month);
-    let templateIncome = DEF_INCOME;
-    let templateFixed = DEF_FIXED;
-    
-    if (prevMonths.length > 0) {
-      const closestPrevMonth = prevMonths[prevMonths.length - 1];
-      const prevData = monthlyData[closestPrevMonth];
-      templateIncome = prevData.income;
-      // Copy fixed template, but reset "paid" status to false for the new month
-      templateFixed = prevData.fixed.map(f => ({ ...f, paid: false }));
-    } else {
-      templateFixed = DEF_FIXED.map(f => ({ ...f, paid: false }));
+    // Initial configuration for July 2026, all other/future months start clean
+    if (month === "2026-07") {
+      return {
+        income: DEF_INCOME,
+        fixed: DEF_FIXED.map(f => ({ ...f, paid: false })),
+        varExp: [],
+        recover: []
+      };
     }
 
     return {
-      income: templateIncome,
-      fixed: templateFixed,
+      income: 0,
+      fixed: [],
       varExp: [],
       recover: []
     };
