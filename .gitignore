@@ -19,3 +19,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .firebase/
+
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
