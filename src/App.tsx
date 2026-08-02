@@ -35,6 +35,10 @@ const DEF_CATS: Category[] = [
   { name: "Dineout",    color: "#ec4899" },
   { name: "Rent",       color: "#8b5cf6" },
   { name: "Utilities",  color: "#06b6d4" },
+  { name: "Gold Plan",  color: "#f59e0b" },
+  { name: "Education Loan", color: "#10b981" },
+  { name: "Health Insurance", color: "#ef4444" },
+  { name: "Life Insurance", color: "#6366f1" },
   { name: "Other",      color: "#64748b" }
 ];
 
@@ -72,7 +76,17 @@ const DEF_RECOVER: RecoveryItem[] = [
 const DEF_INCOME = 260600;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const inr = (n: number) => "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const CURRENCY_SYMBOL = "₹";
+const inr = (n: number) => CURRENCY_SYMBOL + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const mapNameToCategory = (name: string) => {
+  const s = name.toLowerCase();
+  if (s.includes('gold')) return 'Gold Plan';
+  if (s.includes('education') || s.includes('loan')) return 'Education Loan';
+  if (s.includes('rent')) return 'Rent';
+  if (s.includes('health')) return 'Health Insurance';
+  if (s.includes('life')) return 'Life Insurance';
+  return 'Other';
+};
 const mk = (d: string) => d.slice(0, 7);
 const fmtM = (k: string) => { 
   const [y, m] = k.split("-").map(Number); 
@@ -275,7 +289,7 @@ interface RupeeInputProps {
 const RupeeInput: React.FC<RupeeInputProps> = ({ value, onChange, placeholder = "0", isInvalid = false }) => {
   return (
     <div className="relative">
-      <span className="input-prefix">₹</span>
+      <span className="input-prefix">{CURRENCY_SYMBOL}</span>
       <input
         type="number"
         inputMode="decimal"
@@ -359,7 +373,7 @@ const BRow: React.FC<BRowProps> = ({ item, editId, editV, setEditV, onToggle, on
               className="input-field flex-1"
             />
             <div className="relative w-24">
-              <span className="input-prefix text-xs">₹</span>
+              <span className="input-prefix text-xs">{CURRENCY_SYMBOL}</span>
               <input
                 type="number"
                 value={editV.amount}
@@ -562,7 +576,7 @@ const ExpTab: React.FC<ExpTabProps> = ({
     }
     if (amt > 99999999) {
       setAmountInvalid(true);
-      showToast("Amount is too large (max ₹9,99,99,999).", "error");
+      showToast(`Amount is too large (max ${CURRENCY_SYMBOL}9,99,99,999).`, "error");
       return;
     }
     if (!form.date) {
@@ -666,7 +680,7 @@ const ExpTab: React.FC<ExpTabProps> = ({
       {monthExp.length === 0 ? (
         <div className="card p-6 text-center text-slate-400 text-sm">No expenses for this month.</div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" style={{ paddingBottom: 120 }}>
           {monthExp.map(e => {
             const cat = cats.find(c => c.name === e.category);
             const account = acc.find(a => a.id === e.accountId);
@@ -1036,7 +1050,7 @@ const OvTab: React.FC<OvTabProps> = ({
             <p className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">Salary Credit (Income)</p>
             {editIncome ? (
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-slate-800 font-bold text-sm">₹</span>
+                <span className="text-slate-800 font-bold text-sm">{CURRENCY_SYMBOL}</span>
                 <input
                   autoFocus
                   type="number"
@@ -1106,16 +1120,16 @@ const OvTab: React.FC<OvTabProps> = ({
             const isNew = a.id === newlyAddedId;
             return (
               <div key={a.id} className={`bg-slate-50 border border-slate-100/50 rounded-xl p-3 flex items-center justify-between ${isNew ? 'glow-item' : ''}`}>
-                {editAId === a.id ? (
-                  <div className="flex gap-1.5 w-full">
+                  {editAId === a.id ? (
+                  <div className="flex gap-1.5 w-full flex-col sm:flex-row sm:items-center">
                     <input
                       value={editAV.name}
                       onChange={e => setEditAV(v => ({ ...v, name: e.target.value }))}
                       placeholder="Account Name"
-                      className="input-field flex-1"
+                      className="input-field flex-1 min-w-0"
                     />
                     <div className="relative w-28">
-                      <span className="input-prefix text-xs">₹</span>
+                      <span className="input-prefix text-xs">{CURRENCY_SYMBOL}</span>
                       <input
                         type="number"
                         value={editAV.balance}
@@ -1165,8 +1179,8 @@ const OvTab: React.FC<OvTabProps> = ({
                   </div>
                 ) : (
                   <>
-                    <div>
-                      <p className="text-slate-400 text-[10px] font-semibold">{a.name}</p>
+                    <div className="min-w-0">
+                      <p className="text-slate-400 text-[10px] font-semibold truncate">{a.name}</p>
                       <p className={`text-base font-bold ${a.balance < 0 ? 'text-rose-500' : 'text-slate-800'}`}>{inr(a.balance)}</p>
                     </div>
                     <button onClick={() => { setEditAId(a.id); setEditAV({ name: a.name, balance: String(a.balance) }); }} className="text-slate-500 hover:text-indigo-600 p-1">
@@ -2020,6 +2034,42 @@ export default function App() {
     setMonthlyData(prev => {
       const currentList = prev[month]?.fixed || activeMonthData.fixed;
       const updatedList = typeof newFixed === 'function' ? newFixed(currentList) : newFixed;
+
+      // detect items toggled to paid
+      const toggledToPaid = updatedList.filter(u => {
+        const prevItem = currentList.find(x => x.id === u.id);
+        return prevItem && !prevItem.paid && u.paid;
+      });
+
+      if (toggledToPaid.length > 0) {
+        // schedule adding corresponding expenses
+        setTimeout(() => {
+          setExp(prevExp => {
+            let next = [...prevExp];
+            toggledToPaid.forEach(item => {
+              const category = mapNameToCategory(item.name);
+              if (!cats.some(c => c.name === category)) {
+                setCats(prevCats => [...prevCats, { name: category, color: '#64748b' }]);
+              }
+              const newE: Expense = {
+                id: uid(),
+                amount: item.amount,
+                category,
+                description: item.name,
+                date: new Date().toISOString().slice(0,10),
+                accountId: acc[0]?.id || undefined
+              };
+              next = [...next, newE];
+              // deduct from account balance
+              if (newE.accountId) {
+                setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
+              }
+            });
+            return next;
+          });
+        }, 0);
+      }
+
       return {
         ...prev,
         [month]: {
@@ -2034,6 +2084,39 @@ export default function App() {
     setMonthlyData(prev => {
       const currentList = prev[month]?.varExp || activeMonthData.varExp;
       const updatedList = typeof newVar === 'function' ? newVar(currentList) : newVar;
+
+      const toggledToPaid = updatedList.filter(u => {
+        const prevItem = currentList.find(x => x.id === u.id);
+        return prevItem && !prevItem.paid && u.paid;
+      });
+
+      if (toggledToPaid.length > 0) {
+        setTimeout(() => {
+          setExp(prevExp => {
+            let next = [...prevExp];
+            toggledToPaid.forEach(item => {
+              const category = mapNameToCategory(item.name);
+              if (!cats.some(c => c.name === category)) {
+                setCats(prevCats => [...prevCats, { name: category, color: '#64748b' }]);
+              }
+              const newE: Expense = {
+                id: uid(),
+                amount: item.amount,
+                category,
+                description: item.name,
+                date: new Date().toISOString().slice(0,10),
+                accountId: acc[0]?.id || undefined
+              };
+              next = [...next, newE];
+              if (newE.accountId) {
+                setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
+              }
+            });
+            return next;
+          });
+        }, 0);
+      }
+
       return {
         ...prev,
         [month]: {
