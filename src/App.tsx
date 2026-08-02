@@ -1401,8 +1401,8 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave, onGenerateShareLink, shareLinkState, userEmail, onLogout }) => {
-  // Suppress unused onSave warning
-  if (false) { onSave({ syncKey: "", firebaseConfig: "" }); }
+  // Suppress unused props warning
+  if (false) { onSave({ syncKey: "", firebaseConfig: "" }); void userEmail; void onLogout; }
   const [syncKey] = useState(settings.syncKey || "");
   const [copyText, setCopyText] = useState("Copy");
 
@@ -1417,81 +1417,63 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-sheet">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-slate-800 font-bold text-lg">Sync & Cloud Settings</h3>
+          <div className="flex items-center gap-2">
+            <SvgIcon name="share" size={18} />
+            <h3 className="text-slate-800 font-bold text-lg">Invite & Share</h3>
+          </div>
           <button className="icon-btn text-slate-500 hover:text-indigo-600 transition-colors" onClick={onClose}>
             <SvgIcon name="x" size={20} />
           </button>
         </div>
-        
-        <Field label="Sync Passcode (Aura Key)">
-          <input
-            type="text"
-            readOnly
-            disabled
-            value={syncKey}
-            className="input-field bg-slate-50 text-slate-500 cursor-not-allowed text-center font-bold"
-          />
-          <p className="text-[11px] text-slate-400 mt-1">
-            This Aura key is locked to this notebook and cannot be changed.
-          </p>
-        </Field>
 
-        <div className="bg-slate-50 border border-slate-200/60 p-3.5 rounded-xl mb-4 flex flex-col gap-2 mt-2">
-          {userEmail && (
-            <>
-              <label className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">Authenticated User</label>
-              <strong className="text-sm text-indigo-600 block mb-1">{userEmail}</strong>
-            </>
-          )}
-          <button 
-            type="button" 
-            onClick={onLogout}
-            className="btn-secondary text-xs py-1.5 px-3 flex items-center justify-center gap-1.5 w-full text-rose-600 border-rose-200/50 hover:bg-rose-50"
-          >
-            <SvgIcon name="logOut" size={12} />
-            Sign Out
-          </button>
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 mb-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
+            <SvgIcon name="key" size={14} />
+          </div>
+          <div>
+            <p className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Your Aura Key</p>
+            <p className="text-sm font-bold font-mono text-indigo-700">{syncKey || "—"}</p>
+          </div>
         </div>
 
-        <div className="border-t border-slate-200 pt-4 mt-4 mb-4">
-          <label className="label font-semibold">Invite Roommates</label>
-          <p className="text-[11px] text-slate-400 mb-2.5">
-            Generate a shareable invite link. Your roommates open it once to sync their device — no login needed!
-          </p>
-          <button
-            type="button"
-            className="btn-secondary flex items-center justify-center gap-1.5 py-2 px-3 w-auto"
-            onClick={() => onGenerateShareLink({ syncKey, firebaseConfig: "" })}
-            disabled={shareLinkState.loading}
-          >
-            <SvgIcon name="share" size={14} />
-            {shareLinkState.loading ? "Generating..." : "Generate Invite Link"}
-          </button>
-          {shareLinkState.link && (
-            <div className="mt-3">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={shareLinkState.link}
-                  className="input-field flex-1 text-xs bg-slate-50"
-                />
-                <button
-                  type="button"
-                  className="btn-primary w-auto px-4"
-                  onClick={handleCopy}
-                >
-                  {copyText}
-                </button>
-              </div>
-              <p className="text-[11px] text-emerald-600 font-semibold mt-1">
-                ✅ Send this link to other devices to connect them to this sync key.
-              </p>
+        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+          Generate a shareable invite link. Anyone who opens it will automatically connect to your notebook — no sign-in needed for them.
+        </p>
+
+        <button
+          type="button"
+          className="btn-primary w-full flex items-center justify-center gap-2 py-2.5"
+          onClick={() => onGenerateShareLink({ syncKey, firebaseConfig: "" })}
+          disabled={shareLinkState.loading}
+        >
+          <SvgIcon name="share" size={15} />
+          {shareLinkState.loading ? "Generating..." : "Generate Invite Link"}
+        </button>
+
+        {shareLinkState.link && (
+          <div className="mt-4">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={shareLinkState.link}
+                className="input-field flex-1 text-xs bg-slate-50"
+              />
+              <button
+                type="button"
+                className="btn-primary w-auto px-4"
+                onClick={handleCopy}
+              >
+                {copyText}
+              </button>
             </div>
-          )}
-        </div>
+            <p className="text-[11px] text-emerald-600 font-semibold mt-2">
+              ✅ Send this link to your roommates to instantly sync their device.
+            </p>
+          </div>
+        )}
 
-        <div className="flex gap-2.5 mt-3">
+        <div className="flex gap-2.5 mt-5">
           <button className="btn-secondary w-full" onClick={onClose}>Close</button>
         </div>
       </div>
@@ -1657,8 +1639,9 @@ const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast 
               <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl shadow-violet-900/60 mb-1" style={{ background: "linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c4b5fd 100%)" }}>
                 <SvgIcon name="wallet" size={36} />
               </div>
-              <h2 className="text-4xl font-extrabold tracking-tight" style={{ backgroundImage: "linear-gradient(135deg, #e0e7ff 0%, #c4b5fd 50%, #f0abfc 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Aura Xpenz</h2>
-              <p className="text-sm max-w-[300px] text-center leading-relaxed" style={{ color: "rgba(199,210,254,0.7)" }}>Track your personal expenses, bank balances, and financial planning — simple, clean, and real-time.</p>
+              <h2 className="text-4xl font-extrabold tracking-tight" style={{ backgroundImage: "linear-gradient(135deg, #e0e7ff 0%, #c4b5fd 50%, #f0abfc 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>X-penz</h2>
+              <p className="text-[10px] mt-0.5 tracking-widest font-medium" style={{ color: "rgba(199,210,254,0.45)", fontVariant: "small-caps", letterSpacing: "0.2em" }}>by Aura Lt. <sup style={{ fontSize: "0.6em", verticalAlign: "super" }}>™</sup></p>
+              <p className="text-sm max-w-[300px] text-center leading-relaxed mt-2" style={{ color: "rgba(199,210,254,0.7)" }}>Track your personal expenses, bank balances, and financial planning — simple, clean, and real-time.</p>
             </div>
 
             <div className="flex flex-col gap-3">
@@ -1696,8 +1679,8 @@ const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast 
                   <SvgIcon name="plusCircle" size={20} />
                 </div>
                 <div className="flex-1">
-                  <div className="font-bold text-sm text-white">I am a New User</div>
-                  <div className="text-xs text-slate-400">Sign in and create a new unique notebook</div>
+                  <div className="font-bold text-sm text-white">Sign In / Create Account</div>
+                  <div className="text-xs text-slate-400">Sign in with email or create a new notebook</div>
                 </div>
                 <SvgIcon name="chevR" size={16} />
               </button>
@@ -1944,7 +1927,7 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Sync status state
-  const [syncStatus, setSyncStatus] = useState<"offline" | "connecting" | "synced" | "syncing" | "error">("offline");
+  const [_syncStatus, setSyncStatus] = useState<"offline" | "connecting" | "synced" | "syncing" | "error">("offline");
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
 
   const lastRemoteData = useRef("");
@@ -2327,9 +2310,22 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <SvgIcon name="wallet" size={18} />
-                <h1 className="text-base font-bold">Aura Xpenz</h1>
+                <div className="flex flex-col leading-none">
+                  <h1 className="text-base font-bold tracking-tight">X-penz</h1>
+                  <span className="text-[8px] tracking-widest opacity-50" style={{ fontVariant: "small-caps", letterSpacing: "0.15em" }}>by Aura Lt. <sup style={{ fontSize: "0.7em" }}>™</sup></span>
+                </div>
               </div>
               <div className="flex items-center gap-1.5">
+                {settings.syncKey && (
+                  <div
+                    title="Aura Key"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-mono"
+                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)" }}
+                  >
+                    <SvgIcon name="key" size={11} />
+                    <span className="text-indigo-200 font-semibold tracking-wide">{settings.syncKey}</span>
+                  </div>
+                )}
                 <button
                   onClick={handleOpenSettings}
                   title="Share / Invite"
@@ -2345,15 +2341,6 @@ export default function App() {
                 >
                   <SvgIcon name="logOut" size={13} />
                   <span>Sign Out</span>
-                </button>
-                <button onClick={handleOpenSettings} title="Sync & Cloud Settings" className="relative p-1 text-white hover:opacity-85 transition-opacity">
-                  <SvgIcon name="settings" size={18} />
-                  <span className={`absolute top-0 right-0 w-2 h-2 rounded-full border border-indigo-600 ${
-                    syncStatus === 'synced' ? 'bg-emerald-400' :
-                    syncStatus === 'syncing' ? 'bg-blue-400 animate-pulse' :
-                    syncStatus === 'connecting' ? 'bg-amber-400 animate-pulse' :
-                    syncStatus === 'error' ? 'bg-rose-400' : 'bg-slate-400'
-                  }`} />
                 </button>
               </div>
             </div>
