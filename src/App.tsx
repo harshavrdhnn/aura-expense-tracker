@@ -1551,24 +1551,58 @@ interface AdminStats {
   keysList: AdminKeyRecord[];
 }
 
-const checkAuraKeyExists = async (key: string): Promise<boolean> => {
-  const normalized = key.trim().toLowerCase();
-  if (normalized === ADMIN_KEY) return true;
-
+const ensureFirebaseAuth = async (): Promise<boolean> => {
+  if (firebase.auth().currentUser) return true;
   try {
-    const db = firebase.database();
-    const keySnapshot = await db.ref(`${KEYS_DB_PATH}/${normalized}`).once("value");
-    if (keySnapshot.exists()) return true;
-    const dataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${normalized}`).once("value");
-    return dataSnapshot.exists();
+    await firebase.auth().signInAnonymously();
+    return true;
   } catch (e) {
-    console.error("Failed to check aura key:", e);
+    console.warn("Anonymous Firebase auth failed:", e);
     return false;
   }
 };
 
+const resolveAuraKey = async (key: string): Promise<string | null> => {
+  const raw = key.trim();
+  const normalized = raw.toLowerCase();
+  if (raw === ADMIN_KEY || normalized === ADMIN_KEY) return ADMIN_KEY;
+
+  try {
+    if (!(await ensureFirebaseAuth())) return null;
+    const db = firebase.database();
+
+    const exactKeySnapshot = await db.ref(`${KEYS_DB_PATH}/${raw}`).once("value");
+    if (exactKeySnapshot.exists()) return raw;
+
+    const exactDataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${raw}`).once("value");
+    if (exactDataSnapshot.exists()) return raw;
+
+    if (normalized !== raw) {
+      const normalizedKeySnapshot = await db.ref(`${KEYS_DB_PATH}/${normalized}`).once("value");
+      if (normalizedKeySnapshot.exists()) return normalized;
+
+      const normalizedDataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${normalized}`).once("value");
+      if (normalizedDataSnapshot.exists()) return normalized;
+    }
+
+    return null;
+  } catch (e) {
+    console.error("Failed to resolve aura key:", e);
+    return null;
+  }
+};
+
+const checkAuraKeyExists = async (key: string): Promise<boolean> => {
+  const resolved = await resolveAuraKey(key);
+  return resolved !== null;
+};
+
 const fetchAdminStats = async (): Promise<AdminStats> => {
   try {
+    if (!(await ensureFirebaseAuth())) {
+      throw new Error("Unable to authenticate with Firebase.");
+    }
+
     const db = firebase.database();
     const keysSnap = await db.ref(KEYS_DB_PATH).once("value");
     const notesSnap = await db.ref(ROOT_DATA_PATH).once("value");
@@ -1600,6 +1634,10 @@ const createAuraKeyRecord = async (key: string, createdBy = "admin") => {
   const normalized = key.trim().toLowerCase();
   if (!normalized || normalized === ADMIN_KEY) {
     throw new Error("Invalid admin key.");
+  }
+
+  if (!(await ensureFirebaseAuth())) {
+    throw new Error("Unable to authenticate with Firebase. Please try again.");
   }
 
   const db = firebase.database();
@@ -1749,11 +1787,17 @@ const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast 
     }
   };
 
-  const handleKeySubmit = (e: React.FormEvent) => {
+  const handleKeySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalKey = keyInput.trim().toLowerCase();
+    const finalKey = keyInput.trim();
     if (!finalKey || !isKeyValid) return;
-    onSuccess(finalKey);
+
+    if (!isCreator) {
+      const resolved = await resolveAuraKey(finalKey);
+      onSuccess(resolved || finalKey);
+    } else {
+      onSuccess(finalKey);
+    }
   };
 
   return (
@@ -2153,74 +2197,99 @@ export default function App() {
     markMonthUpdated(month);
   };
 
+  const syncAutoExpensesForItems = <T extends { id: string; name: string; amount: number; paid: boolean }>(
+    currentList: T[],
+    updatedList: T[]
+  ) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const accountId = acc[0]?.id;
+
+    const newlyPaid = updatedList.filter(u => u.paid && (!currentList.some(c => c.id === u.id) || !currentList.find(c => c.id === u.id)?.paid));
+    const toggledToUnpaidOrRemoved = currentList.filter(c => c.paid && !updatedList.some(u => u.id === c.id && u.paid));
+    const updatedPaid = updatedList.filter(u => {
+      const prev = currentList.find(c => c.id === u.id && c.paid);
+      return !!prev && u.paid && (prev.amount !== u.amount || prev.name !== u.name);
+    });
+
+    if (newlyPaid.length === 0 && toggledToUnpaidOrRemoved.length === 0 && updatedPaid.length === 0) {
+      return;
+    }
+
+    setExp(prevExp => {
+      let next = [...prevExp];
+
+      toggledToUnpaidOrRemoved.forEach(item => {
+        const removed = next.filter(e => e.sourceType === 'auto' && e.sourceId === item.id);
+        removed.forEach(exp => {
+          if (exp.accountId) {
+            setAcc(prevA => prevA.map(a => a.id === exp.accountId ? { ...a, balance: a.balance + exp.amount } : a));
+          }
+        });
+        next = next.filter(e => !(e.sourceType === 'auto' && e.sourceId === item.id));
+      });
+
+      updatedPaid.forEach(item => {
+        const index = next.findIndex(e => e.sourceType === 'auto' && e.sourceId === item.id);
+        const category = mapNameToCategory(item.name);
+        if (index !== -1) {
+          const existing = next[index];
+          const diff = item.amount - existing.amount;
+          if (diff !== 0 && existing.accountId) {
+            setAcc(prevA => prevA.map(a => a.id === existing.accountId ? { ...a, balance: a.balance - diff } : a));
+          }
+          next[index] = {
+            ...existing,
+            amount: item.amount,
+            category,
+            description: item.name
+          };
+        } else {
+          const newE: Expense = {
+            id: uid(),
+            amount: item.amount,
+            category,
+            description: item.name,
+            date: today,
+            accountId: accountId || undefined,
+            sourceType: 'auto',
+            sourceId: item.id
+          };
+          next = [...next, newE];
+          if (newE.accountId) {
+            setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
+          }
+        }
+      });
+
+      newlyPaid.forEach(item => {
+        if (next.some(e => e.sourceType === 'auto' && e.sourceId === item.id)) return;
+        const category = mapNameToCategory(item.name);
+        const newE: Expense = {
+          id: uid(),
+          amount: item.amount,
+          category,
+          description: item.name,
+          date: today,
+          accountId: accountId || undefined,
+          sourceType: 'auto',
+          sourceId: item.id
+        };
+        next = [...next, newE];
+        if (newE.accountId) {
+          setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
+        }
+      });
+
+      return next;
+    });
+  };
+
   const setMonthFixed = (newFixed: FixedExpense[] | ((prev: FixedExpense[]) => FixedExpense[])) => {
     setMonthlyData(prev => {
       const currentList = prev[month]?.fixed || activeMonthData.fixed;
       const updatedList = typeof newFixed === 'function' ? newFixed(currentList) : newFixed;
 
-      // detect items toggled to paid
-      const toggledToPaid = updatedList.filter(u => {
-        const prevItem = currentList.find(x => x.id === u.id);
-        return prevItem && !prevItem.paid && u.paid;
-      });
-
-      // detect items toggled to unpaid (undo)
-      const toggledToUnpaid = updatedList.filter(u => {
-        const prevItem = currentList.find(x => x.id === u.id);
-        return prevItem && prevItem.paid && !u.paid;
-      });
-
-      if (toggledToPaid.length > 0) {
-        // add expenses and deduct accounts synchronously
-        setExp(prevExp => {
-          let next = [...prevExp];
-          toggledToPaid.forEach(item => {
-            const category = mapNameToCategory(item.name);
-            // ensure category exists
-            setCats(prevCats => prevCats.some(c => c.name === category) ? prevCats : [...prevCats, { name: category, color: '#64748b' }]);
-            const newE: Expense = {
-              id: uid(),
-              amount: item.amount,
-              category,
-              description: item.name,
-              date: new Date().toISOString().slice(0,10),
-              accountId: acc[0]?.id || undefined,
-              sourceType: 'auto',
-              sourceId: item.id
-            };
-            next = [...next, newE];
-            if (newE.accountId) {
-              setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
-            }
-          });
-          return next;
-        });
-      }
-
-      if (toggledToUnpaid.length > 0) {
-        // remove auto-created expenses and restore account balances
-        toggledToUnpaid.forEach(item => {
-          setExp(prevExp => {
-            // find the most recent matching expense by description+amount
-            // prefer matching by sourceId for robust undo
-            let revIdx = prevExp.findIndex(e => e.sourceType === 'auto' && e.sourceId === item.id);
-            let removed;
-            if (revIdx !== -1) {
-              removed = prevExp[revIdx];
-            } else {
-              const idx = [...prevExp].reverse().findIndex(e => e.description === item.name && e.amount === item.amount && e.category === mapNameToCategory(item.name));
-              if (idx === -1) return prevExp;
-              revIdx = prevExp.length - 1 - idx;
-              removed = prevExp[revIdx];
-            }
-            const next = prevExp.filter((_, i) => i !== revIdx);
-            if (removed && removed.accountId) {
-              setAcc(prevA => prevA.map(a => a.id === removed.accountId ? { ...a, balance: a.balance + removed.amount } : a));
-            }
-            return next;
-          });
-        });
-      }
+      syncAutoExpensesForItems(currentList, updatedList);
 
       return {
         ...prev,
@@ -2238,62 +2307,7 @@ export default function App() {
       const currentList = prev[month]?.varExp || activeMonthData.varExp;
       const updatedList = typeof newVar === 'function' ? newVar(currentList) : newVar;
 
-      const toggledToPaid = updatedList.filter(u => {
-        const prevItem = currentList.find(x => x.id === u.id);
-        return prevItem && !prevItem.paid && u.paid;
-      });
-
-      const toggledToUnpaid = updatedList.filter(u => {
-        const prevItem = currentList.find(x => x.id === u.id);
-        return prevItem && prevItem.paid && !u.paid;
-      });
-
-      if (toggledToPaid.length > 0) {
-        setExp(prevExp => {
-          let next = [...prevExp];
-          toggledToPaid.forEach(item => {
-            const category = mapNameToCategory(item.name);
-            setCats(prevCats => prevCats.some(c => c.name === category) ? prevCats : [...prevCats, { name: category, color: '#64748b' }]);
-            const newE: Expense = {
-              id: uid(),
-              amount: item.amount,
-              category,
-              description: item.name,
-              date: new Date().toISOString().slice(0,10),
-              accountId: acc[0]?.id || undefined,
-              sourceType: 'auto',
-              sourceId: item.id
-            };
-            next = [...next, newE];
-            if (newE.accountId) {
-              setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
-            }
-          });
-          return next;
-        });
-      }
-
-      if (toggledToUnpaid.length > 0) {
-        toggledToUnpaid.forEach(item => {
-          setExp(prevExp => {
-            let revIdx = prevExp.findIndex(e => e.sourceType === 'auto' && e.sourceId === item.id);
-            let removed;
-            if (revIdx !== -1) {
-              removed = prevExp[revIdx];
-            } else {
-              const idx = [...prevExp].reverse().findIndex(e => e.description === item.name && e.amount === item.amount && e.category === mapNameToCategory(item.name));
-              if (idx === -1) return prevExp;
-              revIdx = prevExp.length - 1 - idx;
-              removed = prevExp[revIdx];
-            }
-            const next = prevExp.filter((_, i) => i !== revIdx);
-            if (removed && removed.accountId) {
-              setAcc(prevA => prevA.map(a => a.id === removed.accountId ? { ...a, balance: a.balance + removed.amount } : a));
-            }
-            return next;
-          });
-        });
-      }
+      syncAutoExpensesForItems(currentList, updatedList);
 
       return {
         ...prev,
@@ -2547,15 +2561,21 @@ export default function App() {
   };
 
   const handleCreateAuraKey = async () => {
-    const newKey = adminKeyInput.trim().toLowerCase();
-    if (!newKey) {
+    const rawKey = adminKeyInput.trim();
+    if (!rawKey) {
       setAdminKeyMessage({ text: "Enter a valid new Aura Key.", type: "error" });
       return;
     }
 
     try {
-      await createAuraKeyRecord(newKey);
-      setAdminKeyMessage({ text: `Aura Key "${newKey}" created successfully.`, type: "success" });
+      const exists = await checkAuraKeyExists(rawKey);
+      if (exists) {
+        setAdminKeyMessage({ text: `Aura Key "${rawKey}" already exists. Choose another.`, type: "error" });
+        return;
+      }
+
+      await createAuraKeyRecord(rawKey);
+      setAdminKeyMessage({ text: `Aura Key "${rawKey}" created successfully.`, type: "success" });
       setAdminKeyInput("");
       await loadAdminStats();
     } catch (err: any) {
