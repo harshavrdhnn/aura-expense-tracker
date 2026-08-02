@@ -1,4 +1,4 @@
-# AuraSpend Mobile Expense Tracker
+# Aura Xpenz Mobile Expense Tracker
 
 A modern, fast, mobile-first personal expense tracker. The app keeps track of daily/monthly transactions, category allocations with interactive visualizations, accounts, fixed/variable bills, and lent funds. All your data is securely persisted on your local device via `localStorage`.
 
