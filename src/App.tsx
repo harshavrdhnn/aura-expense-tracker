@@ -1,6 +1,21 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/database';
+import 'firebase/compat/auth';
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCs8VgAr7bQoxv5vIVrnfG5opPWa9eDkuE",
+  authDomain: "auratracker-18242.firebaseapp.com",
+  databaseURL: "https://auratracker-18242-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "auratracker-18242",
+  storageBucket: "auratracker-18242.firebasestorage.app",
+  messagingSenderId: "757820673078",
+  appId: "1:757820673078:web:176d48e26e6be657d31c97"
+};
+
+if (firebase.apps.length === 0) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+}
 import type { 
   Expense, 
   Account, 
@@ -86,20 +101,7 @@ function lsSet<T>(key: string, val: T): void {
 }
 
 // Firebase config parser
-function parseFirebaseConfig(raw: string): any {
-  if (!raw) return null;
-  let str = raw.trim();
-  str = str.replace(/^(const|var|let)\s+\w+\s*=\s*/, "");
-  str = str.replace(/;$/, "").trim();
-  try {
-    return JSON.parse(str);
-  } catch (_) {}
-  try {
-    const result = new Function("return " + str)();
-    if (result && typeof result === "object") return result;
-  } catch (_) {}
-  return null;
-}
+
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 const icons: { [key: string]: string } = {
@@ -117,6 +119,12 @@ const icons: { [key: string]: string } = {
   settings:  "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   share:     "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13",
   copy:      "M9 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1 M20 6h-8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z",
+  rotateCCW: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5",
+  lock:      "M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4",
+  key:       "M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778z M16.5 7.5L21 12m-2.25-2.25L16.5 7.5",
+  plusCircle: "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M12 8v8M8 12h8",
+  eye:       "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  logOut:    "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
 };
 
 interface SvgIconProps {
@@ -1099,7 +1107,7 @@ const OvTab: React.FC<OvTabProps> = ({
             return (
               <div key={a.id} className={`bg-slate-50 border border-slate-100/50 rounded-xl p-3 flex items-center justify-between ${isNew ? 'glow-item' : ''}`}>
                 {editAId === a.id ? (
-                  <div className="flex gap-2 w-full">
+                  <div className="flex gap-1.5 w-full">
                     <input
                       value={editAV.name}
                       onChange={e => setEditAV(v => ({ ...v, name: e.target.value }))}
@@ -1112,9 +1120,29 @@ const OvTab: React.FC<OvTabProps> = ({
                         type="number"
                         value={editAV.balance}
                         onChange={e => setEditAV(v => ({ ...v, balance: e.target.value }))}
-                        className="input-field pl-5 w-full"
+                        className="input-field input-with-prefix w-full"
                       />
                     </div>
+                    <button
+                      className="btn-secondary"
+                      style={{ width: '38px', padding: 0, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderColor: '#cbd5e1', color: '#64748b' }}
+                      onClick={() => {
+                        setEditAV(v => ({ ...v, balance: "0" }));
+                      }}
+                      title="Reset Balance to 0"
+                    >
+                      <SvgIcon name="rotateCCW" size={14} />
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      style={{ width: '38px', padding: 0, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderColor: '#cbd5e1', color: '#64748b' }}
+                      onClick={() => {
+                        setEditAId(null);
+                      }}
+                      title="Cancel Edit"
+                    >
+                      <SvgIcon name="x" size={14} />
+                    </button>
                     <button
                       className="btn-primary"
                       style={{ width: '38px', padding: 0, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1368,16 +1396,15 @@ interface SettingsModalProps {
   onSave: (newSettings: Settings) => void;
   onGenerateShareLink: (targetSettings: Settings) => void;
   shareLinkState: { loading: boolean; link: string };
+  userEmail: string | null;
+  onLogout: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave, onGenerateShareLink, shareLinkState }) => {
-  const [syncKey, setSyncKey] = useState(settings.syncKey || "");
-  const [firebaseConfig, setFirebaseConfig] = useState(settings.firebaseConfig || "");
+const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave, onGenerateShareLink, shareLinkState, userEmail, onLogout }) => {
+  // Suppress unused onSave warning
+  if (false) { onSave({ syncKey: "", firebaseConfig: "" }); }
+  const [syncKey] = useState(settings.syncKey || "");
   const [copyText, setCopyText] = useState("Copy");
-
-  const handleSave = () => {
-    onSave({ syncKey: syncKey.trim(), firebaseConfig: firebaseConfig.trim() });
-  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareLinkState.link).then(() => {
@@ -1396,41 +1423,45 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave
           </button>
         </div>
         
-        <Field label="Sync Passcode (Sync Key)">
+        <Field label="Sync Passcode (Aura Key)">
           <input
             type="text"
-            placeholder="e.g. my-private-passcode"
+            readOnly
+            disabled
             value={syncKey}
-            onChange={e => setSyncKey(e.target.value)}
-            className="input-field"
+            className="input-field bg-slate-50 text-slate-500 cursor-not-allowed text-center font-bold"
           />
           <p className="text-[11px] text-slate-400 mt-1">
-            Devices with this same passcode will synchronize your expenses in real time.
+            This Aura key is locked to this notebook and cannot be changed.
           </p>
         </Field>
 
-        <Field label="Firebase Realtime DB Config JSON">
-          <textarea
-            placeholder='e.g. { "apiKey": "...", "databaseURL": "...", "projectId": "..." }'
-            value={firebaseConfig}
-            onChange={e => setFirebaseConfig(e.target.value)}
-            rows={4}
-            className="input-field font-mono text-xs resize-y"
-          />
-          <p className="text-[11px] text-slate-400 mt-1">
-            Paste the configuration object from your Firebase Console. Ensure Realtime Database rules allow read/writes.
-          </p>
-        </Field>
+        <div className="bg-slate-50 border border-slate-200/60 p-3.5 rounded-xl mb-4 flex flex-col gap-2 mt-2">
+          {userEmail && (
+            <>
+              <label className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">Authenticated User</label>
+              <strong className="text-sm text-indigo-600 block mb-1">{userEmail}</strong>
+            </>
+          )}
+          <button 
+            type="button" 
+            onClick={onLogout}
+            className="btn-secondary text-xs py-1.5 px-3 flex items-center justify-center gap-1.5 w-full text-rose-600 border-rose-200/50 hover:bg-rose-50"
+          >
+            <SvgIcon name="logOut" size={12} />
+            Sign Out
+          </button>
+        </div>
 
         <div className="border-t border-slate-200 pt-4 mt-4 mb-4">
-          <label className="label font-semibold">Invite & Sync Other Devices</label>
+          <label className="label font-semibold">Invite Roommates</label>
           <p className="text-[11px] text-slate-400 mb-2.5">
-            Generate a shareable link to load this settings configuration on another device.
+            Generate a shareable invite link. Your roommates open it once to sync their device — no login needed!
           </p>
           <button
             type="button"
             className="btn-secondary flex items-center justify-center gap-1.5 py-2 px-3 w-auto"
-            onClick={() => onGenerateShareLink({ syncKey, firebaseConfig })}
+            onClick={() => onGenerateShareLink({ syncKey, firebaseConfig: "" })}
             disabled={shareLinkState.loading}
           >
             <SvgIcon name="share" size={14} />
@@ -1461,9 +1492,377 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave
         </div>
 
         <div className="flex gap-2.5 mt-3">
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>Save Settings</button>
+          <button className="btn-secondary w-full" onClick={onClose}>Close</button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const checkAuraKeyExists = async (key: string): Promise<boolean> => {
+  try {
+    const db = firebase.database();
+    const snapshot = await db.ref(`aura_expense_tracker/${key}`).once("value");
+    return snapshot.exists();
+  } catch (e) {
+    console.error("Failed to check aura key:", e);
+    return false;
+  }
+};
+
+interface LoginPortalProps {
+  onSuccess: (syncKey: string) => void;
+  onDemo: () => void;
+  showToast: (msg: string, type: "success" | "error" | "info") => void;
+}
+
+const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast }) => {
+  const [step, setStep] = useState<"welcome" | "auth" | "key">("welcome");
+  const [isCreator, setIsCreator] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem("aura_currentUser_v1") || null);
+  
+  // Auth Form State
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Key Form State
+  const [keyInput, setKeyInput] = useState("");
+  const [keyFeedback, setKeyFeedback] = useState<{ text: string; type: "valid" | "invalid" | "checking" | null }>({ text: "", type: null });
+  const [isKeyValid, setIsKeyValid] = useState(false);
+
+  // Sync auth state listener
+  useEffect(() => {
+    const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+      if (user) {
+        setUserEmail(user.email);
+        localStorage.setItem("aura_currentUser_v1", user.email || "");
+        if (step === "auth" && isCreator) {
+          setStep("key");
+        }
+      } else {
+        setUserEmail(null);
+        localStorage.removeItem("aura_currentUser_v1");
+      }
+    });
+    return unsubscribe;
+  }, [step, isCreator]);
+
+  // Key input checking effect (debounce)
+  useEffect(() => {
+    if (!keyInput) {
+      setKeyFeedback({ text: "", type: null });
+      setIsKeyValid(false);
+      return;
+    }
+    const val = keyInput.trim().toLowerCase();
+    if (val.length < 4) {
+      setKeyFeedback({ text: "Passcode must be at least 4 characters.", type: "invalid" });
+      setIsKeyValid(false);
+      return;
+    }
+
+    setKeyFeedback({ text: "Checking passcode...", type: "checking" });
+    const timer = setTimeout(async () => {
+      try {
+        const exists = await checkAuraKeyExists(val);
+        if (isCreator) {
+          if (exists) {
+            setKeyFeedback({ text: "❌ Key is already in use. Pick a unique one.", type: "invalid" });
+            setIsKeyValid(false);
+          } else {
+            setKeyFeedback({ text: "✅ Key is available!", type: "valid" });
+            setIsKeyValid(true);
+          }
+        } else {
+          if (exists) {
+            setKeyFeedback({ text: "✅ Key found! Ready to join.", type: "valid" });
+            setIsKeyValid(true);
+          } else {
+            setKeyFeedback({ text: "❌ Key not found. Check the code or create a new one.", type: "invalid" });
+            setIsKeyValid(false);
+          }
+        }
+      } catch (e) {
+        setKeyFeedback({ text: "Connection check failed. Try again.", type: "invalid" });
+        setIsKeyValid(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [keyInput, isCreator]);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      setAuthLoading(true);
+      await firebase.auth().signInWithPopup(provider);
+      showToast("Successfully authenticated with Google!", "success");
+      if (isCreator) {
+        setStep("key");
+      }
+    } catch (err: any) {
+      console.error("Google authentication failed:", err);
+      if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
+        try {
+          await firebase.auth().signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+        } catch (e2) {
+          showToast("Authentication failed.", "error");
+        }
+      } else {
+        showToast("Google authentication failed. Please try email sign-in.", "error");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleEmailAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    setAuthLoading(true);
+    try {
+      if (isSignUp) {
+        await firebase.auth().createUserWithEmailAndPassword(email, password);
+        showToast("Account created successfully!", "success");
+      } else {
+        await firebase.auth().signInWithEmailAndPassword(email, password);
+        showToast("Signed in successfully!", "success");
+      }
+      if (isCreator) {
+        setStep("key");
+      }
+    } catch (err: any) {
+      console.error("Auth action failed:", err);
+      showToast(err.message || "Authentication failed.", "error");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleKeySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalKey = keyInput.trim().toLowerCase();
+    if (!finalKey || !isKeyValid) return;
+    onSuccess(finalKey);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col justify-center items-center px-4 py-8 text-slate-100 min-h-dvh" style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #4338ca 50%, #6d28d9 75%, #7c3aed 100%)" }}>
+      <div className="w-full max-w-[400px] flex flex-col gap-6">
+        {step === "welcome" && (
+          <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out]">
+            <div className="text-center flex flex-col items-center gap-3">
+              <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl shadow-violet-900/60 mb-1" style={{ background: "linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c4b5fd 100%)" }}>
+                <SvgIcon name="wallet" size={36} />
+              </div>
+              <h2 className="text-4xl font-extrabold tracking-tight" style={{ backgroundImage: "linear-gradient(135deg, #e0e7ff 0%, #c4b5fd 50%, #f0abfc 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Aura Xpenz</h2>
+              <p className="text-sm max-w-[300px] text-center leading-relaxed" style={{ color: "rgba(199,210,254,0.7)" }}>Track your personal expenses, bank balances, and financial planning — simple, clean, and real-time.</p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  setIsCreator(false);
+                  setStep("key");
+                }}
+                className="w-full rounded-2xl p-4 flex items-center gap-4 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(8px)" }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #6366f1, #818cf8)" }}>
+                  <SvgIcon name="key" size={20} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-sm text-white">I have an Aura Key</div>
+                  <div className="text-xs text-slate-400">Join an existing roommates notebook</div>
+                </div>
+                <SvgIcon name="chevR" size={16} />
+              </button>
+
+              <button 
+                onClick={() => {
+                  setIsCreator(true);
+                  if (userEmail) {
+                    setStep("key");
+                  } else {
+                    setStep("auth");
+                  }
+                }}
+                className="w-full rounded-2xl p-4 flex items-center gap-4 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(8px)" }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)" }}>
+                  <SvgIcon name="plusCircle" size={20} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-sm text-white">I am a New User</div>
+                  <div className="text-xs text-slate-400">Sign in and create a new unique notebook</div>
+                </div>
+                <SvgIcon name="chevR" size={16} />
+              </button>
+
+              <button 
+                onClick={onDemo}
+                className="w-full rounded-2xl p-4 flex items-center gap-4 text-left transition-all hover:scale-[1.01] active:scale-[0.99] opacity-80 hover:opacity-100"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #059669, #10b981)" }}>
+                  <SvgIcon name="eye" size={20} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-sm text-white">Default Template</div>
+                  <div className="text-xs text-slate-400 font-medium">Browse sample data (read-only demo)</div>
+                </div>
+                <SvgIcon name="chevR" size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === "auth" && (
+          <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 rounded-3xl p-6 shadow-xl flex flex-col gap-5 animate-[fadeIn_0.3s_ease-out]">
+            <div className="text-center flex flex-col items-center gap-1.5">
+              <div className="w-12 h-12 rounded-xl bg-slate-700/50 flex items-center justify-center text-slate-400 mb-2">
+                <SvgIcon name="lock" size={20} />
+              </div>
+              <h3 className="text-xl font-bold text-white">Sign In to Continue</h3>
+              <p className="text-xs text-slate-400">Authenticate your session securely.</p>
+            </div>
+
+            <button 
+              onClick={handleGoogleSignIn}
+              disabled={authLoading}
+              className="w-full bg-white text-slate-900 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-3 transition-colors hover:bg-slate-100 disabled:opacity-50"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.707a5.416 5.416 0 0 1-.282-1.707c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.844 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/></svg>
+              Sign in with Google
+            </button>
+
+            <div className="flex items-center gap-2 text-xs text-slate-500 uppercase tracking-widest">
+              <div className="h-[1px] bg-slate-700 flex-1"></div>
+              <span>or use email</span>
+              <div className="h-[1px] bg-slate-700 flex-1"></div>
+            </div>
+
+            <form onSubmit={handleEmailAuthSubmit} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400 font-semibold">Email Address</label>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required 
+                  placeholder="name@domain.com"
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400 font-semibold">Password</label>
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required 
+                  placeholder="••••••••"
+                  minLength={6}
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={authLoading}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-50 mt-1"
+              >
+                {isSignUp ? "Create Account" : "Sign In"}
+              </button>
+            </form>
+
+            <div className="text-center text-xs text-slate-400">
+              {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+              <button 
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-indigo-400 hover:underline font-semibold"
+              >
+                {isSignUp ? "Sign In" : "Create Account"}
+              </button>
+            </div>
+
+            <button 
+              onClick={() => setStep("welcome")}
+              className="text-xs text-slate-400 hover:text-white underline self-center mt-1"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
+
+        {step === "key" && (
+          <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 rounded-3xl p-6 shadow-xl flex flex-col gap-5 animate-[fadeIn_0.3s_ease-out]">
+            <div className="text-center flex flex-col items-center gap-1.5">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 mb-2">
+                <SvgIcon name="key" size={20} />
+              </div>
+              <h3 className="text-xl font-bold text-white">{isCreator ? "Create Aura Key" : "Enter Aura Key"}</h3>
+              <p className="text-xs text-slate-400">{isCreator ? "Choose a unique passcode for your new notebook." : "Join an existing roommates notebook."}</p>
+            </div>
+
+            <form onSubmit={handleKeySubmit} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400 font-semibold">Sync Passcode (Aura Key)</label>
+                <input 
+                  type="text" 
+                  value={keyInput}
+                  onChange={e => setKeyInput(e.target.value)}
+                  required 
+                  placeholder="e.g. flat-2b-2026"
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg text-center font-bold tracking-wide text-white focus:outline-none focus:border-indigo-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1 leading-normal text-center">
+                  {isCreator 
+                    ? "Your roommates will use this unique key to synchronize with your notebook."
+                    : "Enter the Sync Passcode your roommate generated to link your devices."
+                  }
+                </p>
+              </div>
+
+              {keyFeedback.type && (
+                <div 
+                  className={`text-center py-2 px-3 rounded-lg text-xs font-semibold ${
+                    keyFeedback.type === 'valid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                    keyFeedback.type === 'checking' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                    'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                  }`}
+                >
+                  {keyFeedback.text}
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={!isKeyValid}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-50 mt-1"
+              >
+                {isCreator ? "Create Notebook →" : "Join Notebook →"}
+              </button>
+            </form>
+
+            <button 
+              onClick={() => {
+                if (isCreator && !userEmail) {
+                  setStep("auth");
+                } else {
+                  setStep("welcome");
+                }
+              }}
+              className="text-xs text-slate-400 hover:text-white underline self-center mt-1"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1472,6 +1871,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab]         = useState("expenses");
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem("aura_currentUser_v1") || null);
   const [exp, setExp]         = useState<Expense[]>(() => lsGet("exp_v4", DEF_EXP));
   const [acc, setAcc]         = useState<Account[]>(() => {
     const local = lsGet<Account[] | null>("ov_acc", null);
@@ -1498,6 +1899,19 @@ export default function App() {
   useEffect(() => {
     lsSet("selected_month_v2", month);
   }, [month]);
+
+  useEffect(() => {
+    const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+      if (user) {
+        setUserEmail(user.email);
+        localStorage.setItem("aura_currentUser_v1", user.email || "");
+      } else {
+        setUserEmail(null);
+        localStorage.removeItem("aura_currentUser_v1");
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   // Month-specific data dictionary
   const [monthlyData, setMonthlyData] = useState<MonthlyData>((): MonthlyData => {
@@ -1537,9 +1951,40 @@ export default function App() {
   const firebaseSyncRef = useRef<firebase.database.Reference | null>(null);
   const firebaseDbRef = useRef<firebase.database.Database | null>(null);
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type: type === "info" ? "success" : type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleLogout = () => {
+    if (window.confirm("Sign out from your account? This will clear local data.")) {
+      const clearLocal = () => {
+        localStorage.removeItem("exp_v4");
+        localStorage.removeItem("ov_acc");
+        localStorage.removeItem("exp_cats_v3");
+        localStorage.removeItem("selected_month_v2");
+        localStorage.removeItem("monthly_data_v2");
+        localStorage.removeItem("ov_income");
+        localStorage.removeItem("ov_fixed");
+        localStorage.removeItem("ov_var");
+        localStorage.removeItem("ov_recover");
+        localStorage.removeItem("aura_settings_v1");
+        localStorage.removeItem("aura_currentUser_v1");
+        window.location.hash = "";
+        window.location.reload();
+      };
+      
+      if (firebase.apps.length > 0 && firebase.auth().currentUser) {
+        firebase.auth().signOut()
+          .then(clearLocal)
+          .catch((err) => {
+            console.error("Firebase signout error:", err);
+            clearLocal();
+          });
+      } else {
+        clearLocal();
+      }
+    }
   };
 
   const triggerGlow = (id: string) => {
@@ -1647,7 +2092,6 @@ export default function App() {
 
   // Firebase Setup & Realtime DB Listening
   useEffect(() => {
-    const configStr = settings.firebaseConfig;
     const syncKey = settings.syncKey;
 
     if (firebaseSyncRef.current) {
@@ -1656,85 +2100,58 @@ export default function App() {
     }
     firebaseDbRef.current = null;
 
-    if (!configStr) {
+    if (!syncKey) {
       setSyncStatus("offline");
       return;
     }
 
     try {
-      const config = parseFirebaseConfig(configStr);
-      if (!config) {
-        setSyncStatus("error");
-        showToast("Invalid Firebase configuration format.", "error");
-        return;
-      }
-      if (!config.databaseURL) {
-        setSyncStatus("error");
-        showToast("Firebase Config: Missing 'databaseURL'.", "error");
-        return;
-      }
-
       setSyncStatus("connecting");
 
-      const initApp = () => {
-        let app;
-        if (firebase.apps.length > 0) {
-          app = firebase.app();
-        } else {
-          app = firebase.initializeApp(config);
-        }
+      const app = firebase.app();
+      const db = firebase.database(app);
+      firebaseDbRef.current = db;
 
-        const db = firebase.database(app);
-        firebaseDbRef.current = db;
+      const ref = db.ref(`aura_expense_tracker/${syncKey}`);
+      firebaseSyncRef.current = ref;
 
-        const resolvedKey = syncKey || (config.projectId ? config.projectId : "default");
-        const ref = db.ref(`aura_expense_tracker/${resolvedKey}`);
-        firebaseSyncRef.current = ref;
+      showToast("⚡ Cloud Sync Active!", "success");
+      setSyncStatus("synced");
 
-        showToast("⚡ Cloud Sync Active!", "success");
-        setSyncStatus("synced");
-
-        ref.on("value", snapshot => {
-          const data = snapshot.val();
-          if (data) {
-            const dataStr = JSON.stringify(data);
-            if (dataStr !== lastRemoteData.current) {
-              lastRemoteData.current = dataStr;
-              
-              if (data.exp) setExp(data.exp);
-              if (data.acc) {
-                const cleanedAcc = data.acc.map((a: any) => ({
-                  ...a,
-                  balance: Number(a.balance) || 0
-                }));
-                setAcc(cleanedAcc);
-              }
-              if (data.monthlyData) setMonthlyData(data.monthlyData);
-              if (data.cats) setCats(data.cats);
-              
-              setSyncStatus("synced");
-              showToast("Cloud sync loaded latest updates!", "success");
+      ref.on("value", snapshot => {
+        const data = snapshot.val();
+        if (data) {
+          const dataStr = JSON.stringify(data);
+          if (dataStr !== lastRemoteData.current) {
+            lastRemoteData.current = dataStr;
+            
+            if (data.exp) setExp(data.exp);
+            if (data.acc) {
+              const cleanedAcc = data.acc.map((a: any) => ({
+                ...a,
+                balance: Number(a.balance) || 0
+              }));
+              setAcc(cleanedAcc);
             }
-          } else {
-            // Seed cloud database
-            const initialData = { exp, acc, monthlyData, cats };
-            ref.set(initialData).then(() => {
-              lastRemoteData.current = JSON.stringify(initialData);
-              setSyncStatus("synced");
-            });
+            if (data.monthlyData) setMonthlyData(data.monthlyData);
+            if (data.cats) setCats(data.cats);
+            
+            setSyncStatus("synced");
+            showToast("Cloud sync loaded latest updates!", "success");
           }
-        }, (err: any) => {
-          console.error("Firebase RTDB sync error:", err);
-          setSyncStatus("error");
-          showToast("Sync Error: " + err.message, "error");
-        });
-      };
-
-      if (firebase.apps.length > 0) {
-        firebase.app().delete().then(initApp).catch(initApp);
-      } else {
-        initApp();
-      }
+        } else {
+          // Seed cloud database
+          const initialData = { exp, acc, monthlyData, cats };
+          ref.set(initialData).then(() => {
+            lastRemoteData.current = JSON.stringify(initialData);
+            setSyncStatus("synced");
+          });
+        }
+      }, (err: any) => {
+        console.error("Firebase RTDB sync error:", err);
+        setSyncStatus("error");
+        showToast("Sync Error: " + err.message, "error");
+      });
 
     } catch (e) {
       console.error("Firebase setup failed:", e);
@@ -1747,7 +2164,7 @@ export default function App() {
         firebaseSyncRef.current.off();
       }
     };
-  }, [settings]);
+  }, [settings.syncKey]);
 
   // Synchronize state changes to local storage & Firebase DB
   useEffect(() => {
@@ -1862,7 +2279,7 @@ export default function App() {
   };
 
   return (
-    <div id="root">
+    <div id="root" className="w-full h-full flex flex-col overflow-hidden relative">
       {/* Custom Toast Banner */}
       {toast && (
         <div 
@@ -1879,81 +2296,127 @@ export default function App() {
         </div>
       )}
 
-      {/* Sticky Global Top Header (shared month selector and settings) */}
-      <header className="sticky top-0 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white px-4 py-4 rounded-b-2xl shadow-md z-30 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <SvgIcon name="wallet" size={18} />
-            <h1 className="text-base font-bold">AuraSpend</h1>
+      {!settings.syncKey && !isDemoMode ? (
+        <LoginPortal 
+          onSuccess={(key) => handleSaveSettings({ syncKey: key, firebaseConfig: "" })} 
+          onDemo={() => setIsDemoMode(true)} 
+          showToast={showToast} 
+        />
+      ) : (
+        <div className="w-full h-full flex flex-col overflow-hidden">
+          {/* Demo notice banner */}
+          {isDemoMode && (
+            <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-500 text-xs px-4 py-2.5 flex items-center justify-between gap-4 font-semibold shrink-0">
+              <div className="flex items-center gap-2">
+                <SvgIcon name="eye" size={14} />
+                <span>Default Template (Read-Only Demo Mode)</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsDemoMode(false);
+                }}
+                className="bg-amber-500 text-slate-900 px-2 py-1 rounded text-[10px] font-bold cursor-pointer"
+              >
+                + New Notebook
+              </button>
+            </div>
+          )}
+
+          {/* Sticky Global Top Header (shared month selector and settings) */}
+          <header className="sticky top-0 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white px-4 py-4 rounded-b-2xl shadow-md z-30 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SvgIcon name="wallet" size={18} />
+                <h1 className="text-base font-bold">Aura Xpenz</h1>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleOpenSettings}
+                  title="Share / Invite"
+                  className="flex items-center gap-1 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all px-2 py-1 rounded-lg text-xs font-semibold"
+                >
+                  <SvgIcon name="share" size={13} />
+                  <span>Share</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  title="Sign Out / Disconnect"
+                  className="flex items-center gap-1 text-rose-300 hover:text-rose-100 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-400/30 transition-all px-2 py-1 rounded-lg text-xs font-semibold"
+                >
+                  <SvgIcon name="logOut" size={13} />
+                  <span>Sign Out</span>
+                </button>
+                <button onClick={handleOpenSettings} title="Sync & Cloud Settings" className="relative p-1 text-white hover:opacity-85 transition-opacity">
+                  <SvgIcon name="settings" size={18} />
+                  <span className={`absolute top-0 right-0 w-2 h-2 rounded-full border border-indigo-600 ${
+                    syncStatus === 'synced' ? 'bg-emerald-400' :
+                    syncStatus === 'syncing' ? 'bg-blue-400 animate-pulse' :
+                    syncStatus === 'connecting' ? 'bg-amber-400 animate-pulse' :
+                    syncStatus === 'error' ? 'bg-rose-400' : 'bg-slate-400'
+                  }`} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between bg-white/10 rounded-xl px-2 py-1.5">
+              <button onClick={() => setMonth(m => shft(m, -1))} className="p-1 rounded bg-white/10 hover:bg-white/20 transition-colors flex">
+                <SvgIcon name="chevL" size={15} />
+              </button>
+              <span className="text-sm font-semibold">{fmtM(month)}</span>
+              <button onClick={() => setMonth(m => shft(m, 1))} className="p-1 rounded bg-white/10 hover:bg-white/20 transition-colors flex">
+                <SvgIcon name="chevR" size={15} />
+              </button>
+            </div>
+          </header>
+
+          <div className="scroll-area">
+            {tab === "expenses" ? (
+              <ExpTab 
+                monthExp={monthExp} 
+                total={total} 
+                bycat={bycat} 
+                setExp={setExp} 
+                acc={acc}
+                setAcc={setAcc}
+                cats={cats}
+                setCats={setCats}
+                month={month}
+                newlyAddedId={newlyAddedId} 
+                showToast={showToast} 
+              />
+            ) : (
+              <OvTab 
+                acc={acc} 
+                setAcc={setAcc} 
+                activeMonthData={activeMonthData}
+                setMonthIncome={setMonthIncome}
+                setMonthFixed={setMonthFixed}
+                setMonthVarExp={setMonthVarExp}
+                setMonthRecover={setMonthRecover}
+                monthlySpent={total} 
+                newlyAddedId={newlyAddedId} 
+                showToast={showToast} 
+              />
+            )}
           </div>
-          <button onClick={handleOpenSettings} className="relative p-1 text-white hover:opacity-85 transition-opacity">
-            <SvgIcon name="settings" size={18} />
-            <span className={`absolute top-0 right-0 w-2 h-2 rounded-full border-1.5 border-indigo-600 ${
-              syncStatus === 'synced' ? 'bg-emerald-400' :
-              syncStatus === 'syncing' ? 'bg-blue-400' :
-              syncStatus === 'connecting' ? 'bg-amber-400' :
-              syncStatus === 'error' ? 'bg-rose-400' : 'bg-slate-400'
-            }`} />
-          </button>
-        </div>
-        
-        <div className="flex items-center justify-between bg-white/10 rounded-xl px-2 py-1.5">
-          <button onClick={() => setMonth(m => shft(m, -1))} className="p-1 rounded bg-white/10 hover:bg-white/20 transition-colors flex">
-            <SvgIcon name="chevL" size={15} />
-          </button>
-          <span className="text-sm font-semibold">{fmtM(month)}</span>
-          <button onClick={() => setMonth(m => shft(m, 1))} className="p-1 rounded bg-white/10 hover:bg-white/20 transition-colors flex">
-            <SvgIcon name="chevR" size={15} />
-          </button>
-        </div>
-      </header>
 
-      <div className="scroll-area">
-        {tab === "expenses" ? (
-          <ExpTab 
-            monthExp={monthExp} 
-            total={total} 
-            bycat={bycat} 
-            setExp={setExp} 
-            acc={acc}
-            setAcc={setAcc}
-            cats={cats}
-            setCats={setCats}
-            month={month}
-            newlyAddedId={newlyAddedId} 
-            showToast={showToast} 
-          />
-        ) : (
-          <OvTab 
-            acc={acc} 
-            setAcc={setAcc} 
-            activeMonthData={activeMonthData}
-            setMonthIncome={setMonthIncome}
-            setMonthFixed={setMonthFixed}
-            setMonthVarExp={setMonthVarExp}
-            setMonthRecover={setMonthRecover}
-            monthlySpent={total} 
-            newlyAddedId={newlyAddedId} 
-            showToast={showToast} 
-          />
-        )}
-      </div>
-
-      <nav className="bottom-nav">
-        {[
-          { key: "expenses", label: "Expenses",  icon: "receipt"   },
-          { key: "overview", label: "Overview",  icon: "dashboard" },
-        ].map(({ key, label, icon }) => (
-          <button 
-            key={key} 
-            className={`nav-btn ${tab === key ? "active" : ""}`} 
-            onClick={() => setTab(key)}
-          >
-            <SvgIcon name={icon} size={20} />
-            <span>{label}</span>
-          </button>
-        ))}
-      </nav>
+          <nav className="bottom-nav">
+            {[
+              { key: "expenses", label: "Expenses",  icon: "receipt"   },
+              { key: "overview", label: "Overview",  icon: "dashboard" },
+            ].map(({ key, label, icon }) => (
+              <button 
+                key={key} 
+                className={`nav-btn ${tab === key ? "active" : ""}`} 
+                onClick={() => setTab(key)}
+              >
+                <SvgIcon name={icon} size={20} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
 
       {/* Sync Settings Modal */}
       {showSettings && (
@@ -1963,6 +2426,8 @@ export default function App() {
           onSave={handleSaveSettings} 
           onGenerateShareLink={handleGenerateShareLink} 
           shareLinkState={shareLinkState} 
+          userEmail={userEmail}
+          onLogout={handleLogout}
         />
       )}
     </div>
