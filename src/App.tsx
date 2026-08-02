@@ -748,7 +748,8 @@ const ExpTab: React.FC<ExpTabProps> = ({
       tabIndex={0}
       role="button"
       >
-      >+</button>
+        +
+      </button>
 
       {/* Add Expense Modal */}
       {show && (
