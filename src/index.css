@@ -125,3 +125,113 @@ svg text { font-family: 'Inter', sans-serif; }
   0% { background-color: #fef9c3; box-shadow: 0 0 12px rgba(250, 204, 21, 0.4); }
   100% { background-color: white; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
 }
+
+/* Theme System */
+:root {
+  --bg-app: #f8f7ff;
+  --bg-card: white;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --border-main: #e2e8f0;
+  --input-bg: white;
+  --nav-bg: white;
+  --nav-border: #e2e8f0;
+}
+
+body.dark-mode-active {
+  --bg-app: #0f172a;
+  --bg-card: #1e293b;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-main: #334155;
+  --input-bg: #0f172a;
+  --nav-bg: #1e293b;
+  --nav-border: #334155;
+}
+
+#root {
+  background: var(--bg-app) !important;
+  color: var(--text-main) !important;
+}
+
+.card, .row-card {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-main) !important;
+}
+
+.text-slate-800, .text-slate-700, .text-slate-900, .text-slate-600 {
+  color: var(--text-main) !important;
+}
+
+.text-slate-500, .text-slate-400, .text-slate-450 {
+  color: var(--text-muted) !important;
+}
+
+.bg-slate-50, .bg-slate-100 {
+  background-color: var(--bg-app) !important;
+}
+
+.border-slate-100, .border-slate-200, .border-slate-300, .border-slate-200\/60 {
+  border-color: var(--border-main) !important;
+}
+
+.bottom-nav {
+  background: var(--nav-bg) !important;
+  border-top-color: var(--nav-border) !important;
+}
+
+.modal-sheet {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+.input-field {
+  background: var(--input-bg) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-main) !important;
+}
+
+.category-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border-main) !important;
+}
+
+.category-btn-text {
+  color: var(--text-muted) !important;
+}
+
+.category-btn.active .category-btn-text {
+  color: var(--text-main) !important;
+}
+
+/* Adjustments for labels and secondary text */
+.label, .sec-title, .pie-legend-item {
+  color: var(--text-muted) !important;
+}
+
+/* Card specific light/dark adjustments */
+.bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+}
+.border-indigo-100 {
+  border-color: rgba(99, 102, 241, 0.15) !important;
+}
+
+body.dark-mode-active .bg-indigo-50,
+body.dark-mode-active .bg-indigo-50\/50 {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+body.dark-mode-active .border-indigo-100,
+body.dark-mode-active .border-indigo-100\/60 {
+  border-color: rgba(99, 102, 241, 0.25) !important;
+}
+
+/* Light theme overrides to ensure total readability */
+body:not(.dark-mode-active) {
+  --bg-app: #f8f7ff;
+  --bg-card: white;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-main: #e2e8f0;
+}

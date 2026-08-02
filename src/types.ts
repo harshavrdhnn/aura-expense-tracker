@@ -53,6 +53,7 @@ export interface MonthlyData {
 export interface Settings {
   syncKey: string;
   firebaseConfig: string;
+  theme?: 'light' | 'dark';
 }
 
 export interface Category {

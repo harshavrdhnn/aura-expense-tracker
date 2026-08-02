@@ -87,7 +87,7 @@ const mapNameToCategory = (name: string) => {
   if (s.includes('life')) return 'Life Insurance';
   return 'Other';
 };
-const ADMIN_KEY = "admin_hv";
+const ADMIN_KEY = "admin-hv";
 const KEYS_DB_PATH = "aura_expense_tracker_keys";
 const ROOT_DATA_PATH = "aura_expense_tracker";
 
@@ -1459,10 +1459,9 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave, onGenerateShareLink, shareLinkState, userEmail, onLogout }) => {
-  // Suppress unused props warning
-  if (false) { onSave({ syncKey: "", firebaseConfig: "" }); void userEmail; void onLogout; }
   const [syncKey] = useState(settings.syncKey || "");
   const [copyText, setCopyText] = useState("Copy");
+  const [activeTheme, setActiveTheme] = useState<'light' | 'dark'>(settings.theme || 'dark');
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareLinkState.link).then(() => {
@@ -1471,67 +1470,133 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave
     });
   };
 
+  const handleThemeChange = (newTheme: 'light' | 'dark') => {
+    setActiveTheme(newTheme);
+    onSave({ ...settings, theme: newTheme });
+  };
+
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-sheet">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <SvgIcon name="share" size={18} />
-            <h3 className="text-slate-800 font-bold text-lg">Invite & Share</h3>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+            <SvgIcon name="settings" size={20} />
+            <h3 className="font-bold text-lg">Settings</h3>
           </div>
           <button className="icon-btn text-slate-500 hover:text-indigo-600 transition-colors" onClick={onClose}>
             <SvgIcon name="x" size={20} />
           </button>
         </div>
 
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 mb-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
-            <SvgIcon name="key" size={14} />
-          </div>
-          <div>
-            <p className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Your Aura Key</p>
-            <p className="text-sm font-bold font-mono text-indigo-700">{syncKey || "—"}</p>
+        {/* Theme Settings */}
+        <div className="mb-5">
+          <label className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2 block">Theme Mode</label>
+          <div className="flex gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+            <button
+              onClick={() => handleThemeChange('light')}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                activeTheme === 'light'
+                  ? 'bg-white shadow text-slate-800'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <SvgIcon name="eye" size={13} />
+              Light Theme
+            </button>
+            <button
+              onClick={() => handleThemeChange('dark')}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                activeTheme === 'dark'
+                  ? 'bg-slate-800 text-white shadow'
+                  : 'text-slate-500 hover:text-slate-400'
+              }`}
+            >
+              <SvgIcon name="lock" size={13} />
+              Dark Theme
+            </button>
           </div>
         </div>
 
-        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-          Generate a shareable invite link. Anyone who opens it will automatically connect to your notebook — no sign-in needed for them.
-        </p>
-
-        <button
-          type="button"
-          className="btn-primary w-full flex items-center justify-center gap-2 py-2.5"
-          onClick={() => onGenerateShareLink({ syncKey, firebaseConfig: "" })}
-          disabled={shareLinkState.loading}
-        >
-          <SvgIcon name="share" size={15} />
-          {shareLinkState.loading ? "Generating..." : "Generate Invite Link"}
-        </button>
-
-        {shareLinkState.link && (
-          <div className="mt-4">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                readOnly
-                value={shareLinkState.link}
-                className="input-field flex-1 text-xs bg-slate-50"
-              />
-              <button
-                type="button"
-                className="btn-primary w-auto px-4"
-                onClick={handleCopy}
-              >
-                {copyText}
-              </button>
+        {/* Invite & Share */}
+        {syncKey && (
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mb-5">
+            <label className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3 block">Invite & Share</label>
+            <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/60 dark:border-indigo-900/40 rounded-xl p-3.5 mb-4 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
+                <SvgIcon name="key" size={14} />
+              </div>
+              <div>
+                <p className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Aura Key</p>
+                <p className="text-sm font-bold font-mono text-indigo-700 dark:text-indigo-300">{syncKey}</p>
+              </div>
             </div>
-            <p className="text-[11px] text-emerald-600 font-semibold mt-2">
-              ✅ Send this link to your roommates to instantly sync their device.
+
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Generate a shareable invite link. Roommates who open it sync automatically — no login needed!
             </p>
+
+            <button
+              type="button"
+              className="btn-primary w-full flex items-center justify-center gap-2 py-2.5"
+              onClick={() => onGenerateShareLink({ syncKey, firebaseConfig: "" })}
+              disabled={shareLinkState.loading}
+            >
+              <SvgIcon name="share" size={15} />
+              {shareLinkState.loading ? "Generating..." : "Generate Invite Link"}
+            </button>
+
+            {shareLinkState.link && (
+              <div className="mt-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareLinkState.link}
+                    className="input-field flex-1 text-xs bg-slate-50"
+                  />
+                  <button
+                    type="button"
+                    className="btn-primary w-auto px-4"
+                    onClick={handleCopy}
+                  >
+                    {copyText}
+                  </button>
+                </div>
+                <p className="text-[11px] text-emerald-600 font-semibold mt-2">
+                  ✅ Send this link to roommates to instantly sync their device.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        <div className="flex gap-2.5 mt-5">
+        {/* User Account / Session Actions */}
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+          <label className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3 block">Account & Sync</label>
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 p-3.5 rounded-xl mb-4 flex flex-col gap-2">
+            {userEmail ? (
+              <>
+                <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Signed in as</span>
+                <strong className="text-xs text-indigo-600 dark:text-indigo-400 block mb-1 font-mono break-all">{userEmail}</strong>
+              </>
+            ) : (
+              <span className="text-xs text-slate-500 font-medium">Logged in via Aura Key (anonymous sync)</span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onLogout();
+              }}
+              className="btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1.5 w-full text-rose-600 border-rose-200/50 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+            >
+              <SvgIcon name="logOut" size={13} />
+              Sign Out / Disconnect Key
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-2.5 mt-2">
           <button className="btn-secondary w-full" onClick={onClose}>Close</button>
         </div>
       </div>
@@ -1553,13 +1618,43 @@ interface AdminStats {
 
 const ensureFirebaseAuth = async (): Promise<boolean> => {
   if (firebase.auth().currentUser) return true;
+  // Anonymous sign-in is disabled in this project.
+  // Admin operations require being logged in with Google/email.
+  console.warn("Firebase auth required: please sign in with Google or email.");
+  return false;
+};
+
+const isPermissionDeniedError = (e: any) => {
+  const msg = String((e || {}).message || "").toLowerCase();
+  return (e && ((e.code === "PERMISSION_DENIED") || (e.code === "permission-denied") || msg.includes("permission") && msg.includes("denied")));
+};
+
+const tryResolveAuraKey = async (db: firebase.database.Database, raw: string, normalized: string): Promise<string | null> => {
+  // Try keys registry first (may not exist or may be permission denied for public users)
   try {
-    await firebase.auth().signInAnonymously();
-    return true;
-  } catch (e) {
-    console.warn("Anonymous Firebase auth failed:", e);
-    return false;
+    const exactKeySnapshot = await db.ref(`${KEYS_DB_PATH}/${raw}`).once("value");
+    if (exactKeySnapshot.exists()) return raw;
+  } catch (_) { /* keys registry not accessible, fall through */ }
+
+  // Always try data path (this is always accessible)
+  try {
+    const exactDataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${raw}`).once("value");
+    if (exactDataSnapshot.exists()) return raw;
+  } catch (_) { /* ignore */ }
+
+  if (normalized !== raw) {
+    try {
+      const normalizedKeySnapshot = await db.ref(`${KEYS_DB_PATH}/${normalized}`).once("value");
+      if (normalizedKeySnapshot.exists()) return normalized;
+    } catch (_) { /* keys registry not accessible */ }
+
+    try {
+      const normalizedDataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${normalized}`).once("value");
+      if (normalizedDataSnapshot.exists()) return normalized;
+    } catch (_) { /* ignore */ }
   }
+
+  return null;
 };
 
 const resolveAuraKey = async (key: string): Promise<string | null> => {
@@ -1567,26 +1662,15 @@ const resolveAuraKey = async (key: string): Promise<string | null> => {
   const normalized = raw.toLowerCase();
   if (raw === ADMIN_KEY || normalized === ADMIN_KEY) return ADMIN_KEY;
 
+  const db = firebase.database();
   try {
-    if (!(await ensureFirebaseAuth())) return null;
-    const db = firebase.database();
-
-    const exactKeySnapshot = await db.ref(`${KEYS_DB_PATH}/${raw}`).once("value");
-    if (exactKeySnapshot.exists()) return raw;
-
-    const exactDataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${raw}`).once("value");
-    if (exactDataSnapshot.exists()) return raw;
-
-    if (normalized !== raw) {
-      const normalizedKeySnapshot = await db.ref(`${KEYS_DB_PATH}/${normalized}`).once("value");
-      if (normalizedKeySnapshot.exists()) return normalized;
-
-      const normalizedDataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${normalized}`).once("value");
-      if (normalizedDataSnapshot.exists()) return normalized;
-    }
-
-    return null;
+    return await tryResolveAuraKey(db, raw, normalized);
   } catch (e) {
+    if (isPermissionDeniedError(e)) {
+      if (await ensureFirebaseAuth()) {
+        return await tryResolveAuraKey(db, raw, normalized);
+      }
+    }
     console.error("Failed to resolve aura key:", e);
     return null;
   }
@@ -1598,26 +1682,20 @@ const checkAuraKeyExists = async (key: string): Promise<boolean> => {
 };
 
 const fetchAdminStats = async (): Promise<AdminStats> => {
+  const db = firebase.database();
   try {
-    if (!(await ensureFirebaseAuth())) {
-      throw new Error("Unable to authenticate with Firebase.");
-    }
-
-    const db = firebase.database();
     const keysSnap = await db.ref(KEYS_DB_PATH).once("value");
-    const notesSnap = await db.ref(ROOT_DATA_PATH).once("value");
-    const keysData = keysSnap.exists() ? keysSnap.val() : {};
-    const notesData = notesSnap.exists() ? notesSnap.val() : {};
-
-    const keysList = Object.entries(keysData).map(([key, value]) => ({
+    const keysVal = keysSnap.val() || {};
+    
+    const keysList = Object.entries(keysVal).map(([key, val]: [string, any]) => ({
       key,
-      createdBy: (value as any)?.createdBy || "admin",
-      createdAt: (value as any)?.createdAt || 0
+      createdBy: val?.createdBy || "admin",
+      createdAt: val?.createdAt || 0
     }));
 
     return {
       keysCount: keysList.length,
-      notebooksCount: Object.keys(notesData).length,
+      notebooksCount: keysList.length,
       keysList
     };
   } catch (e) {
@@ -1636,34 +1714,33 @@ const createAuraKeyRecord = async (key: string, createdBy = "admin") => {
     throw new Error("Invalid admin key.");
   }
 
-  if (!(await ensureFirebaseAuth())) {
-    throw new Error("Unable to authenticate with Firebase. Please try again.");
-  }
-
   const db = firebase.database();
-  const keyRef = db.ref(`${KEYS_DB_PATH}/${normalized}`);
-  const snapshot = await keyRef.once("value");
-  if (snapshot.exists()) {
-    throw new Error("This Aura Key already exists.");
-  }
+  try {
+    // 1. Write to registry path
+    const keyRef = db.ref(`${KEYS_DB_PATH}/${normalized}`);
+    await keyRef.set({ createdBy, createdAt: Date.now() });
 
-  await keyRef.set({ createdBy, createdAt: Date.now() });
-  const notebookRef = db.ref(`${ROOT_DATA_PATH}/${normalized}`);
-  const notebookSnap = await notebookRef.once("value");
-  if (!notebookSnap.exists()) {
-    await notebookRef.set({});
+    // 2. Initialize notebook if empty
+    const notebookRef = db.ref(`${ROOT_DATA_PATH}/${normalized}`);
+    const snapshot = await notebookRef.once("value");
+    if (!snapshot.exists()) {
+      await notebookRef.set({});
+    }
+    return normalized;
+  } catch (e) {
+    throw e;
   }
-  return normalized;
 };
 
 interface LoginPortalProps {
   onSuccess: (syncKey: string) => void;
   onDemo: () => void;
   showToast: (msg: string, type: "success" | "error" | "info") => void;
+  isAdmin?: boolean;
 }
 
-const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast }) => {
-  const [step, setStep] = useState<"welcome" | "auth" | "key">("welcome");
+const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast, isAdmin = false }) => {
+  const [step, setStep] = useState<"welcome" | "auth" | "key">(isAdmin ? "auth" : "welcome");
   const [isCreator, setIsCreator] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem("aura_currentUser_v1") || null);
   
@@ -1702,8 +1779,8 @@ const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast 
       setIsKeyValid(false);
       return;
     }
-    const val = keyInput.trim().toLowerCase();
-    if (val.length < 4) {
+    const raw = keyInput.trim();
+    if (raw.length < 4) {
       setKeyFeedback({ text: "Passcode must be at least 4 characters.", type: "invalid" });
       setIsKeyValid(false);
       return;
@@ -1712,7 +1789,7 @@ const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast 
     setKeyFeedback({ text: "Checking passcode...", type: "checking" });
     const timer = setTimeout(async () => {
       try {
-        const exists = await checkAuraKeyExists(val);
+        const exists = await checkAuraKeyExists(raw);
         if (isCreator) {
           if (exists) {
             setKeyFeedback({ text: "❌ Key is already in use. Pick a unique one.", type: "invalid" });
@@ -1810,7 +1887,7 @@ const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast 
                 <SvgIcon name="wallet" size={36} />
               </div>
               <h2 className="text-4xl font-extrabold tracking-tight" style={{ backgroundImage: "linear-gradient(135deg, #e0e7ff 0%, #c4b5fd 50%, #f0abfc 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>X-penz</h2>
-              <p className="text-[10px] mt-0.5 tracking-widest font-medium" style={{ color: "rgba(199,210,254,0.45)", fontVariant: "small-caps", letterSpacing: "0.2em" }}>by Aura Lt. <sup style={{ fontSize: "0.6em", verticalAlign: "super" }}>™</sup></p>
+              <p className="text-[10px] mt-0.5 tracking-widest font-medium" style={{ color: "rgba(224,231,255,0.85)", fontVariant: "small-caps", letterSpacing: "0.2em" }}>by Aura Lt. <sup style={{ fontSize: "0.6em", verticalAlign: "super" }}>™</sup></p>
               <p className="text-sm max-w-[300px] text-center leading-relaxed mt-2" style={{ color: "rgba(199,210,254,0.7)" }}>Track your personal expenses, bank balances, and financial planning — simple, clean, and real-time.</p>
             </div>
 
@@ -1943,12 +2020,14 @@ const LoginPortal: React.FC<LoginPortalProps> = ({ onSuccess, onDemo, showToast 
               </button>
             </div>
 
-            <button 
-              onClick={() => setStep("welcome")}
-              className="text-xs text-slate-400 hover:text-white underline self-center mt-1"
-            >
-              ← Back
-            </button>
+            {!isAdmin && (
+              <button 
+                onClick={() => setStep("welcome")}
+                className="text-xs text-slate-400 hover:text-white underline self-center mt-1"
+              >
+                ← Back
+              </button>
+            )}
           </div>
         )}
 
@@ -2104,7 +2183,7 @@ export default function App() {
   const [adminKeyInput, setAdminKeyInput] = useState("");
   const [adminKeyMessage, setAdminKeyMessage] = useState<{ text: string; type: "success" | "error" | null }>({ text: "", type: null });
 
-  const isAdminMode = settings.syncKey === ADMIN_KEY;
+  const isAdminMode = settings.syncKey === ADMIN_KEY || settings.syncKey === "admin_hv";
 
   // Sync status state
   const [_syncStatus, setSyncStatus] = useState<"offline" | "connecting" | "synced" | "syncing" | "error">("offline");
@@ -2119,8 +2198,8 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const handleLogout = () => {
-    if (window.confirm("Sign out from your account? This will clear local data.")) {
+  const handleLogout = (force = false) => {
+    if (force || window.confirm("Sign out from your account? This will clear local data.")) {
       const clearLocal = () => {
         localStorage.removeItem("exp_v4");
         localStorage.removeItem("ov_acc");
@@ -2361,6 +2440,15 @@ export default function App() {
     markMonthUpdated(month);
   };
 
+  // Apply active theme (light/dark mode)
+  useEffect(() => {
+    if (settings.theme === "light") {
+      document.body.classList.remove("dark-mode-active");
+    } else {
+      document.body.classList.add("dark-mode-active");
+    }
+  }, [settings.theme]);
+
   // URL Hash loading checks (load configuration shares on mount)
   useEffect(() => {
     const hash = window.location.hash;
@@ -2568,6 +2656,10 @@ export default function App() {
     }
 
     try {
+      if (!(await ensureFirebaseAuth())) {
+        throw new Error("Unable to authenticate with Firebase. Please check your network and try again.");
+      }
+
       const exists = await checkAuraKeyExists(rawKey);
       if (exists) {
         setAdminKeyMessage({ text: `Aura Key "${rawKey}" already exists. Choose another.`, type: "error" });
@@ -2593,12 +2685,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isAdminMode) {
+    if (isAdminMode && userEmail) {
       loadAdminStats();
     } else {
       setAdminStats(null);
     }
-  }, [isAdminMode]);
+  }, [isAdminMode, userEmail]);
 
   const handleGenerateShareLink = async (targetSettings: Settings) => {
     setShareLinkState({ loading: true, link: "" });
@@ -2644,7 +2736,28 @@ export default function App() {
       )}
 
       {isAdminMode ? (
-        <div className="w-full h-full flex flex-col overflow-hidden bg-slate-950 text-white">
+        !userEmail ? (
+          <div className="w-full h-full flex flex-col bg-slate-950 text-white">
+            <header className="sticky top-0 bg-slate-900/95 border-b border-slate-800 px-5 py-4 z-20 flex justify-between items-center shrink-0">
+              <div>
+                <h1 className="text-xl font-bold">X-penz Admin Access</h1>
+                <p className="text-xs text-slate-400 mt-0.5">Please sign in to access the administrator panel.</p>
+              </div>
+              <button onClick={handleExitAdmin} className="btn-secondary text-xs py-1.5 px-3">
+                Exit
+              </button>
+            </header>
+            <div className="flex-1 flex flex-col justify-center items-center">
+              <LoginPortal 
+                onSuccess={() => {}} 
+                onDemo={handleExitAdmin} 
+                showToast={showToast} 
+                isAdmin={true}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full flex flex-col overflow-hidden bg-slate-950 text-white">
           <header className="sticky top-0 bg-slate-900/95 border-b border-slate-800 px-5 py-4 z-20">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
@@ -2747,6 +2860,7 @@ export default function App() {
             </section>
           </main>
         </div>
+        )
       ) : !settings.syncKey && !isDemoMode ? (
         <LoginPortal 
           onSuccess={(key) => handleSaveSettings({ syncKey: key, firebaseConfig: "" })} 
@@ -2780,10 +2894,10 @@ export default function App() {
                 <SvgIcon name="wallet" size={18} />
                 <div className="flex flex-col leading-none">
                   <h1 className="text-base font-bold tracking-tight">X-penz</h1>
-                  <span className="text-[8px] tracking-widest opacity-50" style={{ fontVariant: "small-caps", letterSpacing: "0.15em" }}>by Aura Lt. <sup style={{ fontSize: "0.7em" }}>™</sup></span>
+                  <span className="text-[9px] tracking-widest" style={{ fontVariant: "small-caps", letterSpacing: "0.15em", color: "rgba(199,210,254,0.8)" }}>by Aura Lt. <sup style={{ fontSize: "0.7em" }}>™</sup></span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 {settings.syncKey && (
                   <div
                     title="Aura Key"
@@ -2795,20 +2909,19 @@ export default function App() {
                   </div>
                 )}
                 <button
-                  onClick={handleOpenSettings}
-                  title="Share / Invite"
-                  className="flex items-center gap-1 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all px-2 py-1 rounded-lg text-xs font-semibold"
-                >
-                  <SvgIcon name="share" size={13} />
-                  <span>Share</span>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  title="Sign Out / Disconnect"
-                  className="flex items-center gap-1 text-rose-300 hover:text-rose-100 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-400/30 transition-all px-2 py-1 rounded-lg text-xs font-semibold"
+                  onClick={() => handleLogout()}
+                  title="Sign Out"
+                  className="flex items-center justify-center p-1.5 text-rose-300 hover:text-rose-100 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-400/30 transition-all rounded-lg text-xs font-semibold"
                 >
                   <SvgIcon name="logOut" size={13} />
-                  <span>Sign Out</span>
+                  <span className="ml-1 text-[11px]">Sign Out</span>
+                </button>
+                <button
+                  onClick={handleOpenSettings}
+                  title="Settings & Info"
+                  className="flex items-center justify-center p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all rounded-lg"
+                >
+                  <SvgIcon name="settings" size={16} />
                 </button>
               </div>
             </div>
