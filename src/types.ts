@@ -5,6 +5,9 @@ export interface Expense {
   category: string;
   description: string;
   accountId?: string;
+  // optional metadata for auto-created expenses
+  sourceType?: 'auto' | 'manual';
+  sourceId?: string;
 }
 
 export interface Account {

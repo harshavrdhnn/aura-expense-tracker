@@ -159,6 +159,8 @@ const SvgIcon: React.FC<SvgIconProps> = ({ name, size = 18 }) => {
       strokeWidth={2}
       strokeLinecap="round" 
       strokeLinejoin="round"
+        aria-hidden="true"
+        focusable="false"
     >
       <path d={d} />
     </svg>
@@ -221,12 +223,22 @@ interface ModalProps {
 }
 
 const Modal: React.FC<ModalProps> = ({ title, onClose, onSubmit, children, submitLabel = "Add" }) => {
+  const sheetRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    // focus the first focusable element in the modal for accessibility
+    const el = sheetRef.current;
+    if (!el) return;
+    const first = el.querySelector<HTMLElement>("button, input, select, textarea, [tabindex]:not([tabindex='-1'])");
+    (first || el).focus();
+  }, []);
+
   return (
-    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-sheet">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-sheet" ref={sheetRef} tabIndex={-1}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-slate-800 font-bold text-lg">{title}</h3>
-          <button className="icon-btn text-slate-500 hover:text-indigo-600 transition-colors" onClick={onClose}>
+          <h3 id="modal-title" className="text-slate-800 font-bold text-lg">{title}</h3>
+          <button aria-label="Close dialog" className="icon-btn text-slate-500 hover:text-indigo-600 transition-colors" onClick={onClose}>
             <SvgIcon name="x" size={20} />
           </button>
         </div>
@@ -701,10 +713,10 @@ const ExpTab: React.FC<ExpTabProps> = ({
                 <div className="flex items-center gap-2.5 shrink-0">
                   <span className="text-sm font-semibold text-slate-800">{inr(e.amount)}</span>
                   <div className="flex items-center gap-0.5">
-                    <button className="text-slate-500 hover:text-indigo-600 p-1" onClick={() => startEdit(e)}>
+                    <button aria-label={`Edit expense ${e.description || e.category}`} className="text-slate-500 hover:text-indigo-600 p-1" onClick={() => startEdit(e)}>
                       <SvgIcon name="pencil" size={14} />
                     </button>
-                    <button className="text-slate-500 hover:text-red-500 p-1" onClick={() => deleteExpense(e)}>
+                    <button aria-label={`Delete expense ${e.description || e.category}`} className="text-slate-500 hover:text-red-500 p-1" onClick={() => deleteExpense(e)}>
                       <SvgIcon name="trash" size={14} />
                     </button>
                   </div>
@@ -716,7 +728,10 @@ const ExpTab: React.FC<ExpTabProps> = ({
       )}
 
       {/* FAB */}
-      <button className="fab" onClick={() => {
+      <button
+        className="fab"
+        aria-label="Add expense"
+        onClick={() => {
         setAmountInvalid(false);
         setForm({
           amount: "",
@@ -728,7 +743,12 @@ const ExpTab: React.FC<ExpTabProps> = ({
         setShowAddCat(false);
         setNewCatName("");
         setShow(true);
-      }}>+</button>
+      }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.target as HTMLButtonElement).click(); } }}
+      tabIndex={0}
+      role="button"
+      >
+      >+</button>
 
       {/* Add Expense Modal */}
       {show && (
@@ -1018,9 +1038,63 @@ const OvTab: React.FC<OvTabProps> = ({
       <div className={`rounded-2xl p-4 text-white shadow-md transition-all duration-300 ${
         isOverspent ? "bg-gradient-to-br from-rose-700 to-rose-900 shadow-rose-200" : "bg-gradient-to-br from-emerald-600 to-teal-800 shadow-emerald-200"
       }`}>
-        <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider">Projected Balance</p>
-        <p className={`text-3xl font-extrabold my-0.5 ${isNetLow ? "text-rose-200" : "text-white"}`}>{inr(netPosition)}</p>
-        
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider">Current Bank Balance</p>
+            <p className={`text-2xl font-bold my-0.5 ${isNetLow ? "text-rose-200" : "text-white"}`}>{inr(totalBal)}</p>
+
+            <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mt-2">Projected Balance</p>
+            <p className={`text-3xl font-extrabold my-0.5 ${isNetLow ? "text-rose-200" : "text-white"}`}>{inr(netPosition)}</p>
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            <button
+              className="btn-secondary text-xs py-1 px-3"
+              onClick={() => {
+                // load demo/test data into overview
+                setAcc([
+                  { id: 'a1', name: 'Salary Account', balance: 85000 },
+                  { id: 'a2', name: 'Savings Account', balance: 20000 },
+                  { id: 'a3', name: 'Other Account', balance: 5000 }
+                ]);
+                setMonthIncome(75000);
+                setMonthFixed([
+                  { id: 'f-demo1', name: 'Gold Plan', amount: 20000, paid: false },
+                  { id: 'f-demo2', name: 'Education Loan EMI', amount: 8000, paid: false },
+                  { id: 'f-demo3', name: 'Rent', amount: 12000, paid: false },
+                  { id: 'f-demo4', name: 'Health Insurance', amount: 3000, paid: false },
+                  { id: 'f-demo5', name: 'Life Insurance', amount: 1500, paid: false }
+                ]);
+                setMonthVarExp([
+                  { id: 'v-demo1', name: 'Groceries', amount: 4000, paid: false },
+                  { id: 'v-demo2', name: 'Fuel', amount: 1500, paid: false }
+                ]);
+                setMonthRecover([
+                  { id: 'r-demo1', name: 'Lent to Raj', amount: 5000, note: '', recovered: false }
+                ]);
+                showToast('Demo data loaded into Overview. Check Expenses tab for created entries when you mark items paid.', 'success');
+              }}
+            >
+              Load Demo Data
+            </button>
+
+            <button
+              className="btn-secondary text-xs py-1 px-3"
+              onClick={() => {
+                // reset to defaults
+                setAcc(DEF_ACC);
+                setMonthIncome(DEF_INCOME);
+                setMonthFixed(DEF_FIXED.map(f => ({ ...f, paid: false })));
+                setMonthVarExp(DEF_VAR.map(v => ({ ...v, paid: false })));
+                setMonthRecover(DEF_RECOVER.map(r => ({ ...r, recovered: false })));
+                showToast('Reset to defaults.', 'success');
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
         {/* Math equation breakdown */}
         <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-col gap-1 text-[11px] text-white/80">
           <div className="flex items-center justify-between">
@@ -1183,7 +1257,7 @@ const OvTab: React.FC<OvTabProps> = ({
                       <p className="text-slate-400 text-[10px] font-semibold truncate">{a.name}</p>
                       <p className={`text-base font-bold ${a.balance < 0 ? 'text-rose-500' : 'text-slate-800'}`}>{inr(a.balance)}</p>
                     </div>
-                    <button onClick={() => { setEditAId(a.id); setEditAV({ name: a.name, balance: String(a.balance) }); }} className="text-slate-500 hover:text-indigo-600 p-1">
+                    <button aria-label={`Edit account ${a.name}`} onClick={() => { setEditAId(a.id); setEditAV({ name: a.name, balance: String(a.balance) }); }} className="text-slate-500 hover:text-indigo-600 p-1">
                       <SvgIcon name="pencil" size={14} />
                     </button>
                   </>
@@ -2041,33 +2115,62 @@ export default function App() {
         return prevItem && !prevItem.paid && u.paid;
       });
 
+      // detect items toggled to unpaid (undo)
+      const toggledToUnpaid = updatedList.filter(u => {
+        const prevItem = currentList.find(x => x.id === u.id);
+        return prevItem && prevItem.paid && !u.paid;
+      });
+
       if (toggledToPaid.length > 0) {
-        // schedule adding corresponding expenses
-        setTimeout(() => {
+        // add expenses and deduct accounts synchronously
+        setExp(prevExp => {
+          let next = [...prevExp];
+          toggledToPaid.forEach(item => {
+            const category = mapNameToCategory(item.name);
+            // ensure category exists
+            setCats(prevCats => prevCats.some(c => c.name === category) ? prevCats : [...prevCats, { name: category, color: '#64748b' }]);
+            const newE: Expense = {
+              id: uid(),
+              amount: item.amount,
+              category,
+              description: item.name,
+              date: new Date().toISOString().slice(0,10),
+              accountId: acc[0]?.id || undefined,
+              sourceType: 'auto',
+              sourceId: item.id
+            };
+            next = [...next, newE];
+            if (newE.accountId) {
+              setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
+            }
+          });
+          return next;
+        });
+      }
+
+      if (toggledToUnpaid.length > 0) {
+        // remove auto-created expenses and restore account balances
+        toggledToUnpaid.forEach(item => {
           setExp(prevExp => {
-            let next = [...prevExp];
-            toggledToPaid.forEach(item => {
-              const category = mapNameToCategory(item.name);
-              if (!cats.some(c => c.name === category)) {
-                setCats(prevCats => [...prevCats, { name: category, color: '#64748b' }]);
-              }
-              const newE: Expense = {
-                id: uid(),
-                amount: item.amount,
-                category,
-                description: item.name,
-                date: new Date().toISOString().slice(0,10),
-                accountId: acc[0]?.id || undefined
-              };
-              next = [...next, newE];
-              // deduct from account balance
-              if (newE.accountId) {
-                setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
-              }
-            });
+            // find the most recent matching expense by description+amount
+            // prefer matching by sourceId for robust undo
+            let revIdx = prevExp.findIndex(e => e.sourceType === 'auto' && e.sourceId === item.id);
+            let removed;
+            if (revIdx !== -1) {
+              removed = prevExp[revIdx];
+            } else {
+              const idx = [...prevExp].reverse().findIndex(e => e.description === item.name && e.amount === item.amount && e.category === mapNameToCategory(item.name));
+              if (idx === -1) return prevExp;
+              revIdx = prevExp.length - 1 - idx;
+              removed = prevExp[revIdx];
+            }
+            const next = prevExp.filter((_, i) => i !== revIdx);
+            if (removed && removed.accountId) {
+              setAcc(prevA => prevA.map(a => a.id === removed.accountId ? { ...a, balance: a.balance + removed.amount } : a));
+            }
             return next;
           });
-        }, 0);
+        });
       }
 
       return {
@@ -2090,31 +2193,56 @@ export default function App() {
         return prevItem && !prevItem.paid && u.paid;
       });
 
+      const toggledToUnpaid = updatedList.filter(u => {
+        const prevItem = currentList.find(x => x.id === u.id);
+        return prevItem && prevItem.paid && !u.paid;
+      });
+
       if (toggledToPaid.length > 0) {
-        setTimeout(() => {
+        setExp(prevExp => {
+          let next = [...prevExp];
+          toggledToPaid.forEach(item => {
+            const category = mapNameToCategory(item.name);
+            setCats(prevCats => prevCats.some(c => c.name === category) ? prevCats : [...prevCats, { name: category, color: '#64748b' }]);
+            const newE: Expense = {
+              id: uid(),
+              amount: item.amount,
+              category,
+              description: item.name,
+              date: new Date().toISOString().slice(0,10),
+              accountId: acc[0]?.id || undefined,
+              sourceType: 'auto',
+              sourceId: item.id
+            };
+            next = [...next, newE];
+            if (newE.accountId) {
+              setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
+            }
+          });
+          return next;
+        });
+      }
+
+      if (toggledToUnpaid.length > 0) {
+        toggledToUnpaid.forEach(item => {
           setExp(prevExp => {
-            let next = [...prevExp];
-            toggledToPaid.forEach(item => {
-              const category = mapNameToCategory(item.name);
-              if (!cats.some(c => c.name === category)) {
-                setCats(prevCats => [...prevCats, { name: category, color: '#64748b' }]);
-              }
-              const newE: Expense = {
-                id: uid(),
-                amount: item.amount,
-                category,
-                description: item.name,
-                date: new Date().toISOString().slice(0,10),
-                accountId: acc[0]?.id || undefined
-              };
-              next = [...next, newE];
-              if (newE.accountId) {
-                setAcc(prevA => prevA.map(a => a.id === newE.accountId ? { ...a, balance: a.balance - newE.amount } : a));
-              }
-            });
+            let revIdx = prevExp.findIndex(e => e.sourceType === 'auto' && e.sourceId === item.id);
+            let removed;
+            if (revIdx !== -1) {
+              removed = prevExp[revIdx];
+            } else {
+              const idx = [...prevExp].reverse().findIndex(e => e.description === item.name && e.amount === item.amount && e.category === mapNameToCategory(item.name));
+              if (idx === -1) return prevExp;
+              revIdx = prevExp.length - 1 - idx;
+              removed = prevExp[revIdx];
+            }
+            const next = prevExp.filter((_, i) => i !== revIdx);
+            if (removed && removed.accountId) {
+              setAcc(prevA => prevA.map(a => a.id === removed.accountId ? { ...a, balance: a.balance + removed.amount } : a));
+            }
             return next;
           });
-        }, 0);
+        });
       }
 
       return {
@@ -2131,6 +2259,32 @@ export default function App() {
     setMonthlyData(prev => {
       const currentList = prev[month]?.recover || activeMonthData.recover;
       const updatedList = typeof newRecover === 'function' ? newRecover(currentList) : newRecover;
+
+      const toggledToRecovered = updatedList.filter(u => {
+        const prevItem = currentList.find(x => x.id === u.id);
+        return prevItem && !prevItem.recovered && u.recovered;
+      });
+
+      if (toggledToRecovered.length > 0) {
+        // credit account for recovered amounts
+        toggledToRecovered.forEach(item => {
+          const amt = item.amount || 0;
+          setAcc(prevA => prevA.map(a => a.id === (acc[0]?.id || a.id) ? { ...a, balance: a.balance + amt } : a));
+        });
+      }
+
+      const toggledToUnrecovered = updatedList.filter(u => {
+        const prevItem = currentList.find(x => x.id === u.id);
+        return prevItem && prevItem.recovered && !u.recovered;
+      });
+
+      if (toggledToUnrecovered.length > 0) {
+        toggledToUnrecovered.forEach(item => {
+          const amt = item.amount || 0;
+          setAcc(prevA => prevA.map(a => a.id === (acc[0]?.id || a.id) ? { ...a, balance: a.balance - amt } : a));
+        });
+      }
+
       return {
         ...prev,
         [month]: {
@@ -2356,6 +2510,8 @@ export default function App() {
       {toast && (
         <div 
           className="toast-banner"
+          role="status"
+          aria-live="polite"
           style={{
             position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
             background: toast.type === "success" ? "linear-gradient(135deg, #059669 0%, #0d9488 100%)" : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",

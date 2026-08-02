@@ -1,10 +1,11 @@
 {
-  "short_name": "Aura",
-  "name": "Aura Expense Tracker",
+  "short_name": "X-penz",
+  "name": "X-penz",
   "icons": [
     { "src": "/favicon.svg", "sizes": "48x46", "type": "image/svg+xml" }
   ],
-  "start_url": "/",
+  "start_url": "/aura-expense-tracker/",
+  "scope": "/aura-expense-tracker/",
   "display": "standalone",
   "theme_color": "#7c3aed",
   "background_color": "#ffffff"
