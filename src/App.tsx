@@ -1977,10 +1977,16 @@ export default function App() {
 
   // Get active month's data, pre-populating if missing
   const activeMonthData = useMemo<MonthlyDataEntry>(() => {
-    if (monthlyData[month]) {
-      return monthlyData[month];
+    const raw = monthlyData[month];
+    if (raw) {
+      return {
+        income: raw.income ?? 0,
+        fixed: (raw.fixed ?? []).map(f => ({ ...(f as FixedExpense), paid: (f as any)?.paid ?? false })),
+        varExp: raw.varExp ?? [],
+        recover: raw.recover ?? []
+      };
     }
-    
+
     // Initial configuration for July 2026, all other/future months start clean
     if (month === "2026-07") {
       return {
