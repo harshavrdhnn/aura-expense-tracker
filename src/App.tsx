@@ -87,6 +87,10 @@ const mapNameToCategory = (name: string) => {
   if (s.includes('life')) return 'Life Insurance';
   return 'Other';
 };
+const ADMIN_KEY = "admin_hv";
+const KEYS_DB_PATH = "aura_expense_tracker_keys";
+const ROOT_DATA_PATH = "aura_expense_tracker";
+
 const mk = (d: string) => d.slice(0, 7);
 const fmtM = (k: string) => { 
   const [y, m] = k.split("-").map(Number); 
@@ -1052,46 +1056,11 @@ const OvTab: React.FC<OvTabProps> = ({
             <button
               className="btn-secondary text-xs py-1 px-3"
               onClick={() => {
-                // load demo/test data into overview
-                setAcc([
-                  { id: 'a1', name: 'Salary Account', balance: 85000 },
-                  { id: 'a2', name: 'Savings Account', balance: 20000 },
-                  { id: 'a3', name: 'Other Account', balance: 5000 }
-                ]);
-                setMonthIncome(75000);
-                setMonthFixed([
-                  { id: 'f-demo1', name: 'Gold Plan', amount: 20000, paid: false },
-                  { id: 'f-demo2', name: 'Education Loan EMI', amount: 8000, paid: false },
-                  { id: 'f-demo3', name: 'Rent', amount: 12000, paid: false },
-                  { id: 'f-demo4', name: 'Health Insurance', amount: 3000, paid: false },
-                  { id: 'f-demo5', name: 'Life Insurance', amount: 1500, paid: false }
-                ]);
-                setMonthVarExp([
-                  { id: 'v-demo1', name: 'Groceries', amount: 4000, paid: false },
-                  { id: 'v-demo2', name: 'Fuel', amount: 1500, paid: false }
-                ]);
-                setMonthRecover([
-                  { id: 'r-demo1', name: 'Lent to Raj', amount: 5000, note: '', recovered: false }
-                ]);
-                showToast('Demo data loaded into Overview. Check Expenses tab for created entries when you mark items paid.', 'success');
+                setAcc(curr => curr.map(a => ({ ...a, balance: Number(a.balance) })));
+                showToast('Overview refreshed using current account balances and overview data.', 'success');
               }}
             >
-              Load Demo Data
-            </button>
-
-            <button
-              className="btn-secondary text-xs py-1 px-3"
-              onClick={() => {
-                // reset to defaults
-                setAcc(DEF_ACC);
-                setMonthIncome(DEF_INCOME);
-                setMonthFixed(DEF_FIXED.map(f => ({ ...f, paid: false })));
-                setMonthVarExp(DEF_VAR.map(v => ({ ...v, paid: false })));
-                setMonthRecover(DEF_RECOVER.map(r => ({ ...r, recovered: false })));
-                showToast('Reset to defaults.', 'success');
-              }}
-            >
-              Reset
+              Refresh
             </button>
           </div>
         </div>
@@ -1570,15 +1539,83 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onClose, onSave
   );
 };
 
+interface AdminKeyRecord {
+  key: string;
+  createdBy: string;
+  createdAt: number;
+}
+
+interface AdminStats {
+  keysCount: number;
+  notebooksCount: number;
+  keysList: AdminKeyRecord[];
+}
+
 const checkAuraKeyExists = async (key: string): Promise<boolean> => {
+  const normalized = key.trim().toLowerCase();
+  if (normalized === ADMIN_KEY) return true;
+
   try {
     const db = firebase.database();
-    const snapshot = await db.ref(`aura_expense_tracker/${key}`).once("value");
-    return snapshot.exists();
+    const keySnapshot = await db.ref(`${KEYS_DB_PATH}/${normalized}`).once("value");
+    if (keySnapshot.exists()) return true;
+    const dataSnapshot = await db.ref(`${ROOT_DATA_PATH}/${normalized}`).once("value");
+    return dataSnapshot.exists();
   } catch (e) {
     console.error("Failed to check aura key:", e);
     return false;
   }
+};
+
+const fetchAdminStats = async (): Promise<AdminStats> => {
+  try {
+    const db = firebase.database();
+    const keysSnap = await db.ref(KEYS_DB_PATH).once("value");
+    const notesSnap = await db.ref(ROOT_DATA_PATH).once("value");
+    const keysData = keysSnap.exists() ? keysSnap.val() : {};
+    const notesData = notesSnap.exists() ? notesSnap.val() : {};
+
+    const keysList = Object.entries(keysData).map(([key, value]) => ({
+      key,
+      createdBy: (value as any)?.createdBy || "admin",
+      createdAt: (value as any)?.createdAt || 0
+    }));
+
+    return {
+      keysCount: keysList.length,
+      notebooksCount: Object.keys(notesData).length,
+      keysList
+    };
+  } catch (e) {
+    console.error("Failed to fetch admin stats:", e);
+    return {
+      keysCount: 0,
+      notebooksCount: 0,
+      keysList: []
+    };
+  }
+};
+
+const createAuraKeyRecord = async (key: string, createdBy = "admin") => {
+  const normalized = key.trim().toLowerCase();
+  if (!normalized || normalized === ADMIN_KEY) {
+    throw new Error("Invalid admin key.");
+  }
+
+  const db = firebase.database();
+  const keyRef = db.ref(`${KEYS_DB_PATH}/${normalized}`);
+  const snapshot = await keyRef.once("value");
+  if (snapshot.exists()) {
+    throw new Error("This Aura Key already exists.");
+  }
+
+  await keyRef.set({ createdBy, createdAt: Date.now() });
+  const notebookRef = db.ref(`${ROOT_DATA_PATH}/${normalized}`);
+  const notebookSnap = await notebookRef.once("value");
+  if (!notebookSnap.exists()) {
+    await notebookRef.set({});
+  }
+  return normalized;
 };
 
 interface LoginPortalProps {
@@ -1966,11 +2003,15 @@ export default function App() {
     if (local && local.length > 0) return local;
     return DEF_CATS;
   });
-  const [month, setMonth]     = useState(() => lsGet("selected_month_v2", "2026-07"));
+  const [month, setMonth]     = useState(() => lsGet("last_updated_month_v2", lsGet("selected_month_v2", "2026-07")));
 
   useEffect(() => {
     lsSet("selected_month_v2", month);
   }, [month]);
+
+  const markMonthUpdated = (monthKey: string) => {
+    lsSet("last_updated_month_v2", monthKey);
+  };
 
   useEffect(() => {
     const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
@@ -2014,6 +2055,12 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [shareLinkState, setShareLinkState] = useState({ loading: false, link: "" });
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminKeyInput, setAdminKeyInput] = useState("");
+  const [adminKeyMessage, setAdminKeyMessage] = useState<{ text: string; type: "success" | "error" | null }>({ text: "", type: null });
+
+  const isAdminMode = settings.syncKey === ADMIN_KEY;
 
   // Sync status state
   const [_syncStatus, setSyncStatus] = useState<"offline" | "connecting" | "synced" | "syncing" | "error">("offline");
@@ -2103,6 +2150,7 @@ export default function App() {
         income: newIncome
       }
     }));
+    markMonthUpdated(month);
   };
 
   const setMonthFixed = (newFixed: FixedExpense[] | ((prev: FixedExpense[]) => FixedExpense[])) => {
@@ -2182,6 +2230,7 @@ export default function App() {
         }
       };
     });
+    markMonthUpdated(month);
   };
 
   const setMonthVarExp = (newVar: VariableExpense[] | ((prev: VariableExpense[]) => VariableExpense[])) => {
@@ -2254,6 +2303,7 @@ export default function App() {
         }
       };
     });
+    markMonthUpdated(month);
   };
 
   const setMonthRecover = (newRecover: RecoveryItem[] | ((prev: RecoveryItem[]) => RecoveryItem[])) => {
@@ -2294,6 +2344,7 @@ export default function App() {
         }
       };
     });
+    markMonthUpdated(month);
   };
 
   // URL Hash loading checks (load configuration shares on mount)
@@ -2327,7 +2378,7 @@ export default function App() {
     }
     firebaseDbRef.current = null;
 
-    if (!syncKey) {
+    if (!syncKey || syncKey === ADMIN_KEY) {
       setSyncStatus("offline");
       return;
     }
@@ -2482,6 +2533,53 @@ export default function App() {
     showToast("Sync settings updated!", "success");
   };
 
+  const loadAdminStats = async () => {
+    setAdminLoading(true);
+    try {
+      const stats = await fetchAdminStats();
+      setAdminStats(stats);
+    } catch (err) {
+      console.error("Unable to load admin stats:", err);
+      setAdminStats(null);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleCreateAuraKey = async () => {
+    const newKey = adminKeyInput.trim().toLowerCase();
+    if (!newKey) {
+      setAdminKeyMessage({ text: "Enter a valid new Aura Key.", type: "error" });
+      return;
+    }
+
+    try {
+      await createAuraKeyRecord(newKey);
+      setAdminKeyMessage({ text: `Aura Key "${newKey}" created successfully.`, type: "success" });
+      setAdminKeyInput("");
+      await loadAdminStats();
+    } catch (err: any) {
+      setAdminKeyMessage({ text: err.message || "Failed to create key.", type: "error" });
+    }
+  };
+
+  const handleExitAdmin = () => {
+    const newSettings = { syncKey: "", firebaseConfig: "" };
+    setSettings(newSettings);
+    lsSet("aura_settings_v1", newSettings);
+    setAdminStats(null);
+    setAdminKeyInput("");
+    setAdminKeyMessage({ text: "", type: null });
+  };
+
+  useEffect(() => {
+    if (isAdminMode) {
+      loadAdminStats();
+    } else {
+      setAdminStats(null);
+    }
+  }, [isAdminMode]);
+
   const handleGenerateShareLink = async (targetSettings: Settings) => {
     setShareLinkState({ loading: true, link: "" });
     const configData = { settings: targetSettings };
@@ -2525,7 +2623,111 @@ export default function App() {
         </div>
       )}
 
-      {!settings.syncKey && !isDemoMode ? (
+      {isAdminMode ? (
+        <div className="w-full h-full flex flex-col overflow-hidden bg-slate-950 text-white">
+          <header className="sticky top-0 bg-slate-900/95 border-b border-slate-800 px-5 py-4 z-20">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h1 className="text-xl font-bold">X-penz Admin Dashboard</h1>
+                <p className="text-sm text-slate-400 mt-1">Manage Aura Keys and view registered notebook statistics.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleExitAdmin}
+                  className="btn-secondary text-xs py-2 px-3"
+                >
+                  Exit Admin
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="scroll-area p-5 space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Total Registered Notebooks</p>
+                <p className="text-4xl font-bold text-white mt-3">{adminLoading ? "..." : adminStats?.notebooksCount ?? 0}</p>
+              </div>
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Aura Keys Created</p>
+                <p className="text-4xl font-bold text-white mt-3">{adminLoading ? "..." : adminStats?.keysCount ?? 0}</p>
+              </div>
+            </div>
+
+            <section className="rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-sm font-semibold">Create New Aura Key</p>
+                  <p className="text-xs text-slate-500">Admins can generate a new key immediately, no email required.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                <div className="flex-1">
+                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">New Key</label>
+                  <input
+                    value={adminKeyInput}
+                    onChange={e => setAdminKeyInput(e.target.value)}
+                    placeholder="e.g. group-4-2026"
+                    className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <button
+                  onClick={handleCreateAuraKey}
+                  className="btn-primary text-sm px-5 py-3"
+                >
+                  Create Key
+                </button>
+              </div>
+
+              {adminKeyMessage.text && (
+                <p className={`mt-3 text-sm ${adminKeyMessage.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {adminKeyMessage.text}
+                </p>
+              )}
+            </section>
+
+            <section className="rounded-3xl border border-slate-800 bg-slate-900/90 p-5">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-sm font-semibold">Recent Aura Keys</p>
+                  <p className="text-xs text-slate-500">Latest keys registered in the database.</p>
+                </div>
+                <button
+                  onClick={loadAdminStats}
+                  className="btn-secondary text-xs px-3 py-2"
+                >
+                  Refresh Stats
+                </button>
+              </div>
+
+              {adminLoading ? (
+                <p className="text-sm text-slate-400">Loading keys...</p>
+              ) : (
+                <div className="space-y-3">
+                  {(adminStats?.keysList.length ?? 0) === 0 ? (
+                    <p className="text-sm text-slate-400">No Aura Keys found yet.</p>
+                  ) : (
+                    <div className="grid gap-3">
+                      {adminStats?.keysList.map(record => (
+                        <div key={record.key} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <p className="font-semibold text-white">{record.key}</p>
+                              <p className="text-xs text-slate-500">Created by {record.createdBy}</p>
+                            </div>
+                            <p className="text-xs text-slate-400">{new Date(record.createdAt).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          </main>
+        </div>
+      ) : !settings.syncKey && !isDemoMode ? (
         <LoginPortal 
           onSuccess={(key) => handleSaveSettings({ syncKey: key, firebaseConfig: "" })} 
           onDemo={() => setIsDemoMode(true)} 
